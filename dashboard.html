@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard — Détection de Fraude Bancaire</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 20px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #334155;
+  }
+  h1 { font-size: 22px; font-weight: 600; color: #f1f5f9; }
+  .status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #94a3b8;
+  }
+  .status .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #22c55e; box-shadow: 0 0 8px #22c55e;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Onglets */
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #334155;
+  }
+  .tab {
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: #e2e8f0; }
+  .tab.actif {
+    color: #60a5fa;
+    border-bottom-color: #60a5fa;
+    font-weight: 600;
+  }
+
+  /* Sections */
+  .section { display: none; }
+  .section.actif { display: block; }
+
+  /* Stats temps réel */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: #1e293b; border-radius: 8px;
+    padding: 14px; border-left: 3px solid #64748b;
+  }
+  .stat .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; }
+  .stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .stat.critique { border-color: #ef4444; }
+  .stat.critique .value { color: #ef4444; }
+  .stat.elevee { border-color: #f59e0b; }
+  .stat.elevee .value { color: #f59e0b; }
+  .stat.moyenne { border-color: #3b82f6; }
+  .stat.moyenne .value { color: #3b82f6; }
+  .stat.total { border-color: #64748b; }
+
+  /* Tableau */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1e293b;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th {
+    text-align: left;
+    padding: 12px;
+    background: #334155;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #cbd5e1;
+    font-weight: 600;
+  }
+  td {
+    padding: 12px;
+    border-top: 1px solid #334155;
+    font-size: 13px;
+  }
+  tr.nouvelle { animation: flash 1.5s ease-out; }
+  @keyframes flash {
+    from { background: #1e40af; }
+    to { background: transparent; }
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.Critique { background: #7f1d1d; color: #fecaca; }
+  .badge.Elevee   { background: #78350f; color: #fde68a; }
+  .badge.Moyenne  { background: #1e3a8a; color: #bfdbfe; }
+  .badge.Faible   { background: #334155; color: #cbd5e1; }
+  .regle {
+    font-family: monospace;
+    background: #334155;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .vide {
+    text-align: center;
+    padding: 40px;
+    color: #64748b;
+  }
+
+  /* Analytics */
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 20px;
+    border-left: 3px solid #3b82f6;
+  }
+  .card.large { grid-column: span 2; }
+  .card h3 {
+    font-size: 15px;
+    color: #cbd5e1;
+    margin-bottom: 15px;
+    font-weight: 600;
+  }
+  .barre {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .barre .label { width: 110px; color: #94a3b8; font-family: monospace; font-size: 12px; }
+  .barre .bar {
+    flex: 1;
+    height: 20px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 4px;
+    transition: width 0.5s;
+    min-width: 4px;
+  }
+  .barre .valeur { width: 50px; text-align: right; color: #e2e8f0; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛡️ Détection de Fraude Bancaire — Temps Réel</h1>
+  <div class="status">
+    <div class="dot"></div>
+    <span id="status-text">Connecté</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab actif" data-cible="temps-reel">⚡ Temps réel</button>
+  <button class="tab" data-cible="analytics">📊 Analytics</button>
+</nav>
+
+<!-- ======================= SECTION TEMPS RÉEL ======================= -->
+<div id="temps-reel" class="section actif">
+
+  <div class="stats">
+    <div class="stat total">
+      <div class="label">Total alertes</div>
+      <div class="value" id="stat-total">0</div>
+    </div>
+    <div class="stat critique">
+      <div class="label">Critiques</div>
+      <div class="value" id="stat-critique">0</div>
+    </div>
+    <div class="stat elevee">
+      <div class="label">Élevées</div>
+      <div class="value" id="stat-elevee">0</div>
+    </div>
+    <div class="stat moyenne">
+      <div class="label">Moyennes</div>
+      <div class="value" id="stat-moyenne">0</div>
+    </div>
+  </div>
+
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Heure</th>
+        <th>Règle</th>
+        <th>Type d'alerte</th>
+        <th>Sévérité</th>
+        <th>Description</th>
+        <th>Transaction</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="6" class="vide">En attente d'alertes...</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<!-- ======================= SECTION ANALYTICS ======================= -->
+<div id="analytics" class="section">
+
+  <div class="analytics-grid">
+
+    <div class="card">
+      <h3>🏆 Top 5 règles déclenchées</h3>
+      <div id="chart-regles"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
+    </div>
+
+    <div class="card">
+      <h3>⚠️ Répartition par sévérité</h3>
+      <div id="chart-severite"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
+    </div>
+
+    <div class="card">
+      <h3>🕐 Alertes par heure</h3>
+      <div id="chart-heures"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
+    </div>
+
+    <div class="card">
+      <h3>👤 Top 5 clients à risque</h3>
+      <div id="chart-clients"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
+    </div>
+
+    <div class="card large">
+      <h3>💰 Distribution des montants</h3>
+      <div id="chart-distribution"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ==================================================================
+// ONGLETS
+// ==================================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('actif'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('actif'));
+    tab.classList.add('actif');
+    document.getElementById(tab.dataset.cible).classList.add('actif');
+    if (tab.dataset.cible === 'analytics') chargerAnalytics();
+  });
+});
+
+
+// ==================================================================
+// SECTION TEMPS RÉEL (SSE)
+// ==================================================================
+const stats = { total: 0, Critique: 0, Elevee: 0, Moyenne: 0, Faible: 0 };
+const tbody = document.getElementById('tbody');
+
+function formatHeure(ts) {
+  if (!ts) return '—';
+  const t = ts['@value'] || ts;
+  return new Date(t).toLocaleTimeString('fr-FR');
+}
+
+function classeOWL(type) {
+  return (type || '').replace('AlerteFraude', '').replace(/([A-Z])/g, ' $1').trim() || type;
+}
+
+function ajouterAlerte(a) {
+  const vide = tbody.querySelector('.vide');
+  if (vide) vide.parentElement.remove();
+
+  const tr = document.createElement('tr');
+  tr.className = 'nouvelle';
+  const tx_id = a.triggeredBy ? (a.triggeredBy['@id'] || a.triggeredBy) : '—';
+  const regle = a.triggersRule ? (a.triggersRule['@id'] || '').split('_').pop() : a.alertType;
+
+  tr.innerHTML = `
+    <td>${formatHeure(a.alertTimestamp)}</td>
+    <td><span class="regle">${regle || '—'}</span></td>
+    <td>${classeOWL(a['@type'])}</td>
+    <td><span class="badge ${a.alertSeverity}">${a.alertSeverity}</span></td>
+    <td>${a.alertDescription || ''}</td>
+    <td><code style="font-size:11px;color:#94a3b8">${tx_id.split('#').pop()}</code></td>
+  `;
+  tbody.prepend(tr);
+
+  while (tbody.children.length > 200) {
+    tbody.removeChild(tbody.lastChild);
+  }
+
+  stats.total++;
+  if (stats[a.alertSeverity] !== undefined) stats[a.alertSeverity]++;
+  document.getElementById('stat-total').textContent = stats.total;
+  document.getElementById('stat-critique').textContent = stats.Critique;
+  document.getElementById('stat-elevee').textContent = stats.Elevee;
+  document.getElementById('stat-moyenne').textContent = stats.Moyenne;
+}
+
+// Chargement initial des alertes déjà présentes
+fetch('/alertes').then(r => r.json()).then(liste => {
+  liste.reverse().forEach(ajouterAlerte);
+});
+
+// Connexion SSE
+const evtSource = new EventSource('/stream');
+evtSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'connected') {
+    document.getElementById('status-text').textContent = 'Connecté (SSE)';
+    return;
+  }
+  ajouterAlerte(data);
+};
+evtSource.onerror = () => {
+  document.getElementById('status-text').textContent = 'Déconnecté';
+};
+
+
+// ==================================================================
+// SECTION ANALYTICS
+// ==================================================================
+function rendreBarres(containerId, data, cleLabel, cleValeur, couleur) {
+  const conteneur = document.getElementById(containerId);
+  if (!data || data.length === 0) {
+    conteneur.innerHTML = '<p style="color:#64748b;font-size:13px">Aucune donnée</p>';
+    return;
+  }
+  const max = Math.max(...data.map(d => parseInt(d[cleValeur])));
+  conteneur.innerHTML = data.map(d => {
+    const pct = max > 0 ? (parseInt(d[cleValeur]) / max * 100).toFixed(0) : 0;
+    const label = String(d[cleLabel]).split('#').pop().split('/').pop();
+    return `
+      <div class="barre">
+        <span class="label">${label}</span>
+        <div class="bar" style="width:${pct}%;background:${couleur}"></div>
+        <span class="valeur">${d[cleValeur]}</span>
+      </div>`;
+  }).join('');
+}
+
+async function chargerAnalytics() {
+  try {
+    const r = await fetch('/analytics');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    rendreBarres('chart-regles',       data.top_regles,   'regle',    'nb', 'linear-gradient(90deg,#ef4444,#f87171)');
+    rendreBarres('chart-severite',     data.par_severite, 'severite', 'nb', 'linear-gradient(90deg,#f59e0b,#fbbf24)');
+    rendreBarres('chart-heures',       data.par_heure,    'heure',    'nb', 'linear-gradient(90deg,#3b82f6,#60a5fa)');
+    rendreBarres('chart-clients',      data.top_clients,  'client',   'nb', 'linear-gradient(90deg,#8b5cf6,#a78bfa)');
+    rendreBarres('chart-distribution', data.distribution, 'tranche',  'nb', 'linear-gradient(90deg,#10b981,#34d399)');
+  } catch (e) {
+    console.error('Erreur analytics:', e);
+    ['chart-regles','chart-severite','chart-heures','chart-clients','chart-distribution']
+      .forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<p style="color:#ef4444;font-size:13px">Erreur de chargement</p>';
+      });
+  }
+}
+
+// Rafraîchit les analytics toutes les 10 secondes si l'onglet est actif
+setInterval(() => {
+  if (document.getElementById('analytics').classList.contains('actif')) {
+    chargerAnalytics();
+  }
+}, 10000);
+</script>
+
+</body>
+</html>

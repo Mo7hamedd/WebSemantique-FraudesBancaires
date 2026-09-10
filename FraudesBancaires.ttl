@@ -1,0 +1,595 @@
+@prefix : <http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee>
+    a owl:Ontology ;
+    rdfs:label "Ontologie de Détection de Fraude Bancaire" ;
+    rdfs:comment "Version 2.0 - Septembre 2026 - Corrigée (conformité OWL 2 DL)" .
+
+#################################################################
+#    CLASSES
+#################################################################
+
+:Client a owl:Class ;
+    rdfs:label "Client" ;
+    rdfs:comment "Personne physique ou morale détenant des comptes bancaires." .
+
+:CompteBancaire a owl:Class ;
+    rdfs:label "Compte Bancaire" ;
+    rdfs:comment "Compte bancaire d'un client." .
+
+:CarteBancaire a owl:Class ;
+    rdfs:label "Carte Bancaire" ;
+    rdfs:comment "Carte bancaire liée à un compte." .
+
+:Transaction a owl:Class ;
+    rdfs:label "Transaction" ;
+    rdfs:comment "Opération bancaire." .
+
+:Localisation a owl:Class ;
+    rdfs:label "Localisation" ;
+    rdfs:comment "Lieu géographique." .
+
+:Regle a owl:Class ;
+    rdfs:label "Règle" ;
+    rdfs:comment "Règle de détection de fraude." .
+
+:Preuve a owl:Class ;
+    rdfs:label "Preuve" ;
+    rdfs:comment "Élément de preuve justifiant une alerte de fraude (déclaration explicite - correction OWL 2 DL)." .
+
+#################################################################
+#    CLASSES : AlerteFraude et sous-classes (une par règle)
+#################################################################
+
+:AlerteFraude a owl:Class ;
+    rdfs:label "Alerte de Fraude" ;
+    rdfs:comment "Alerte générée lors de la détection d'une fraude." .
+
+:AlerteFraudeMontant a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Montant" ;
+    rdfs:comment "Montant anormal dépassant le seuil critique (R001)." .
+
+:AlerteFraudePays a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Pays" ;
+    rdfs:comment "Transaction hors pays habituel (R002)." .
+
+:AlerteFraudeHeure a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Heure" ;
+    rdfs:comment "Transaction hors heures habituelles, 23h-6h (R003)." .
+
+:AlerteFraudeFrequence a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Fréquence" ;
+    rdfs:comment "Fréquence anormale de transactions, >10 en 5 min (R004)." .
+
+:AlerteFraudeCumul a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Cumul" ;
+    rdfs:comment "Cumul journalier dépassé, >10000 MAD/jour (R005)." .
+
+:AlerteFraudeMultiPays a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Multi-Pays" ;
+    rdfs:comment "Carte utilisée dans plusieurs pays, >2 pays en 1h (R006)." .
+
+:AlerteFraudeHistorique a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Historique" ;
+    rdfs:comment "Montant supérieur à 3x la moyenne historique du client (R007)." .
+
+:AlerteFraudeSolde a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Solde" ;
+    rdfs:comment "Tentative de retrait supérieure au solde disponible (R008)." .
+
+:AlerteFraudePlafond a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Plafond" ;
+    rdfs:comment "Transaction supérieure au plafond de la carte (R009)." .
+
+:AlerteFraudeLocalisation a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Localisation" ;
+    rdfs:comment "Transaction incohérente avec la localisation actuelle du client (R010)." .
+
+# Disjointness : une alerte ne peut appartenir qu'à un seul type à la fois
+# CORRECTION : remplacement des 45 déclarations owl:disjointWith par paires
+# par un unique bloc owl:AllDisjointClasses (recommandation OWL 2)
+[] a owl:AllDisjointClasses ;
+    owl:members ( :AlerteFraudeMontant
+                  :AlerteFraudePays
+                  :AlerteFraudeHeure
+                  :AlerteFraudeFrequence
+                  :AlerteFraudeCumul
+                  :AlerteFraudeMultiPays
+                  :AlerteFraudeHistorique
+                  :AlerteFraudeSolde
+                  :AlerteFraudePlafond
+                  :AlerteFraudeLocalisation ) .
+
+#################################################################
+#    PROPRIÉTÉS D'OBJET
+#################################################################
+
+:hasAccount a owl:ObjectProperty ;
+    rdfs:domain :Client ;
+    rdfs:range :CompteBancaire ;
+    owl:inverseOf :belongsTo .
+
+:belongsTo a owl:ObjectProperty ;
+    rdfs:domain :CompteBancaire ;
+    rdfs:range :Client .
+
+:hasCard a owl:ObjectProperty ;
+    rdfs:domain :CompteBancaire ;
+    rdfs:range :CarteBancaire ;
+    owl:inverseOf :linkedTo .
+
+:linkedTo a owl:ObjectProperty ;
+    rdfs:domain :CarteBancaire ;
+    rdfs:range :CompteBancaire .
+
+:sourceOf a owl:ObjectProperty ;
+    rdfs:domain :CompteBancaire ;
+    rdfs:range :Transaction ;
+    owl:inverseOf :hasSource .
+
+:hasSource a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :CompteBancaire .
+
+:destinationOf a owl:ObjectProperty ;
+    rdfs:domain :CompteBancaire ;
+    rdfs:range :Transaction ;
+    owl:inverseOf :hasDestination .
+
+:hasDestination a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :CompteBancaire .
+
+:hasLocation a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :Localisation ;
+    owl:inverseOf :locationOf .
+
+:locationOf a owl:ObjectProperty ;
+    rdfs:domain :Localisation ;
+    rdfs:range :Transaction .
+
+:hasUsualLocation a owl:ObjectProperty ;
+    rdfs:domain :Client ;
+    rdfs:range :Localisation ;
+    owl:inverseOf :isUsualLocationOf .
+
+:isUsualLocationOf a owl:ObjectProperty ;
+    rdfs:domain :Localisation ;
+    rdfs:range :Client .
+
+:hasCurrentLocation a owl:ObjectProperty ;
+    rdfs:domain :Client ;
+    rdfs:range :Localisation ;
+    owl:inverseOf :isCurrentLocationOf .
+
+:isCurrentLocationOf a owl:ObjectProperty ;
+    rdfs:domain :Localisation ;
+    rdfs:range :Client .
+
+:usesCard a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :CarteBancaire ;
+    owl:inverseOf :usedIn .
+
+:usedIn a owl:ObjectProperty ;
+    rdfs:domain :CarteBancaire ;
+    rdfs:range :Transaction .
+
+:generatesAlert a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :AlerteFraude ;
+    owl:inverseOf :triggeredBy .
+
+:triggeredBy a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Transaction .
+
+:involvesTransactions a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Transaction .
+
+:concernsClient a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Client .
+
+:concernsAccount a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :CompteBancaire .
+
+:concernsCard a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :CarteBancaire .
+
+:concernsLocation a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Localisation .
+
+:triggersRule a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Regle ;
+    owl:inverseOf :appliedTo .
+
+:appliedTo a owl:ObjectProperty ;
+    rdfs:domain :Regle ;
+    rdfs:range :AlerteFraude .
+
+# CORRECTION : :hasEvidence est désormais réservée à Transaction -> Preuve.
+# Elle n'est plus redéclarée avec un second rdfs:domain, ce qui évite
+# l'intersection de domaine (:AlerteFraude ⊓ :Transaction) détectée dans l'analyse.
+:hasEvidence a owl:ObjectProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :Preuve ;
+    rdfs:label "possède une preuve (transaction)" ;
+    rdfs:comment "Relie une transaction à une preuve. Propriété séparée de :hasAlertEvidence (correction OWL 2 DL)." .
+
+# CORRECTION : nouvelle propriété dédiée pour le lien AlerteFraude -> Preuve,
+# remplaçant l'ancienne redéclaration conflictuelle de :hasEvidence.
+:hasAlertEvidence a owl:ObjectProperty ;
+    rdfs:domain :AlerteFraude ;
+    rdfs:range :Preuve ;
+    rdfs:label "possède une preuve (alerte)" ;
+    rdfs:comment "Relie une alerte de fraude à une preuve. Distincte de :hasEvidence (Transaction -> Preuve)." .
+
+:hasViolatedRule a owl:ObjectProperty ;
+    rdfs:domain :Preuve ;
+    rdfs:range :Regle .
+
+# CORRECTION : :concernsTransaction reste l'inverse de :hasEvidence
+# (désormais cohérent puisque :hasEvidence a un domaine unique : Transaction).
+:concernsTransaction a owl:ObjectProperty ;
+    rdfs:domain :Preuve ;
+    rdfs:range :Transaction ;
+    owl:inverseOf :hasEvidence .
+
+:relatedTransaction a owl:ObjectProperty , owl:SymmetricProperty ;
+    rdfs:domain :Transaction ;
+    rdfs:range :Transaction .
+
+#################################################################
+#    PROPRIÉTÉS DE DONNÉES
+#################################################################
+
+:clientName a owl:DatatypeProperty ;
+    rdfs:domain :Client ; rdfs:range xsd:string .
+
+:clientEmail a owl:DatatypeProperty ;
+    rdfs:domain :Client ; rdfs:range xsd:string .
+
+:clientPhone a owl:DatatypeProperty ;
+    rdfs:domain :Client ; rdfs:range xsd:string .
+
+:clientAddress a owl:DatatypeProperty ;
+    rdfs:domain :Client ; rdfs:range xsd:string .
+
+:clientRiskScore a owl:DatatypeProperty ;
+    rdfs:domain :Client ; rdfs:range xsd:float .
+
+:accountNumber a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
+
+:accountIBAN a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
+
+:accountBalance a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:decimal .
+
+:accountType a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
+
+:accountStatus a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
+
+:accountOpeningDate a owl:DatatypeProperty ;
+    rdfs:domain :CompteBancaire ; rdfs:range xsd:dateTime .
+
+:cardNumberMasked a owl:DatatypeProperty ;
+    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
+
+:cardType a owl:DatatypeProperty ;
+    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
+
+:cardLimit a owl:DatatypeProperty ;
+    rdfs:domain :CarteBancaire ; rdfs:range xsd:decimal .
+
+:cardExpiryDate a owl:DatatypeProperty ;
+    rdfs:domain :CarteBancaire ; rdfs:range xsd:dateTimeStamp .
+
+:cardStatus a owl:DatatypeProperty ;
+    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
+
+:transactionID a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:string .
+
+:transactionAmount a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:decimal .
+
+:transactionCurrency a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:string .
+
+:transactionTimestamp a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:dateTime .
+
+:transactionType a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:string .
+
+:transactionMerchant a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:string .
+
+:transactionStatus a owl:DatatypeProperty ;
+    rdfs:domain :Transaction ; rdfs:range xsd:string .
+
+:locationCity a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:string .
+
+:locationCountry a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:string .
+
+:locationIP a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:string .
+
+:locationDevice a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:string .
+
+:locationLatitude a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:float .
+
+:locationLongitude a owl:DatatypeProperty ;
+    rdfs:domain :Localisation ; rdfs:range xsd:float .
+
+:ruleID a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:string .
+
+:ruleName a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:string .
+
+:ruleDescription a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:string .
+
+:ruleThreshold a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:float .
+
+:ruleStatus a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:string .
+
+:alertID a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
+
+:alertType a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
+
+:alertSeverity a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
+
+:alertStatus a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
+
+:alertScore a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:float .
+
+:alertDescription a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
+
+:alertTimestamp a owl:DatatypeProperty ;
+    rdfs:domain :AlerteFraude ; rdfs:range xsd:dateTime .
+
+:evidenceValue a owl:DatatypeProperty ;
+    rdfs:domain :Preuve ; rdfs:range xsd:decimal .
+
+:evidenceThreshold a owl:DatatypeProperty ;
+    rdfs:domain :Preuve ; rdfs:range xsd:decimal .
+
+:evidenceDescription a owl:DatatypeProperty ;
+    rdfs:domain :Preuve ; rdfs:range xsd:string .
+
+:evidenceTimestamp a owl:DatatypeProperty ;
+    rdfs:domain :Preuve ; rdfs:range xsd:dateTime .
+
+#################################################################
+#    RESTRICTIONS OWL
+#################################################################
+
+:Client rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :clientName ;
+    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onDataRange xsd:string
+] .
+
+:CompteBancaire rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :belongsTo ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass :Client
+] .
+
+:Transaction rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasSource ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass :CompteBancaire
+] .
+
+:AlerteFraude rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :triggersRule ;
+    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass :Regle
+] .
+
+:Preuve rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasViolatedRule ;
+    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass :Regle
+] .
+
+#################################################################
+#    RÈGLES MÉTIER (avec lien direct vers la sous-classe cible)
+#################################################################
+
+:regle_R001 a :Regle ;
+    :ruleID "R001" ;
+    :ruleName "Montant anormal" ;
+    :ruleDescription "Transaction dépassant le seuil critique" ;
+    :ruleThreshold "5000.0"^^xsd:float ;
+    :ruleStatus "Actif" .
+
+:regle_R002 a :Regle ;
+    :ruleID "R002" ;
+    :ruleName "Changement de pays" ;
+    :ruleDescription "Transaction hors pays habituel" ;
+    :ruleStatus "Actif" .
+
+:regle_R003 a :Regle ;
+    :ruleID "R003" ;
+    :ruleName "Heure inhabituelle" ;
+    :ruleDescription "Transaction en dehors des heures normales (23h-6h)" ;
+    :ruleStatus "Actif" .
+
+:regle_R004 a :Regle ;
+    :ruleID "R004" ;
+    :ruleName "Fréquence anormale" ;
+    :ruleDescription "Trop de transactions sur courte période (> 10 en 5 min)" ;
+    :ruleThreshold "10"^^xsd:float ;
+    :ruleStatus "Actif" .
+
+:regle_R005 a :Regle ;
+    :ruleID "R005" ;
+    :ruleName "Cumul journalier" ;
+    :ruleDescription "Cumul des transactions dépasse le seuil (> 10000 MAD/jour)" ;
+    :ruleThreshold "10000.0"^^xsd:float ;
+    :ruleStatus "Actif" .
+
+:regle_R006 a :Regle ;
+    :ruleID "R006" ;
+    :ruleName "Carte multi-pays" ;
+    :ruleDescription "Carte utilisée dans plusieurs pays (> 2 pays en 1h)" ;
+    :ruleStatus "Actif" .
+
+:regle_R007 a :Regle ;
+    :ruleID "R007" ;
+    :ruleName "Historique incohérent" ;
+    :ruleDescription "Montant > 3x moyenne historique du client" ;
+    :ruleStatus "Actif" .
+
+:regle_R008 a :Regle ;
+    :ruleID "R008" ;
+    :ruleName "Solde insuffisant" ;
+    :ruleDescription "Tentative de retrait > solde disponible" ;
+    :ruleStatus "Actif" .
+
+:regle_R009 a :Regle ;
+    :ruleID "R009" ;
+    :ruleName "Plafond dépassé" ;
+    :ruleDescription "Transaction > plafond de la carte" ;
+    :ruleStatus "Actif" .
+
+:regle_R010 a :Regle ;
+    :ruleID "R010" ;
+    :ruleName "Localisation incohérente" ;
+    :ruleDescription "Transaction ≠ localisation actuelle du client" ;
+    :ruleStatus "Actif" .
+
+#################################################################
+#    EXEMPLES D'INSTANCES
+#################################################################
+
+:loc_254ab0a8 a :Localisation ;
+    :locationCity "MaryBourg" ;
+    :locationCountry "France" ;
+    :locationLatitude "48.8566"^^xsd:float ;
+    :locationLongitude "2.3522"^^xsd:float .
+
+:client_14c38e0e a :Client ;
+    :clientName "Luce Letellier-Poirier" ;
+    :clientEmail "denislefevre@example.com" ;
+    :clientPhone "+33 2 56 12 97 18" ;
+    :clientAddress "590, rue de Nicolas 06957 MaryBourg" ;
+    :clientRiskScore "1.0"^^xsd:float ;
+    :hasAccount :compte_a06cdbdd ;
+    :hasUsualLocation :loc_254ab0a8 .
+
+:carte_f6ec76c8 a :CarteBancaire ;
+    :cardNumberMasked "****-****-****-6c8" ;
+    :cardType "Visa" ;
+    :cardLimit 10000.0 ;
+    :cardStatus "Active" ;
+    :linkedTo :compte_a06cdbdd .
+
+:compte_a06cdbdd a :CompteBancaire ;
+    :accountNumber "45182784544715618350205" ;
+    :accountIBAN "FR8503039124427487889550202" ;
+    :accountBalance 6709.58 ;
+    :accountType "Epargne" ;
+    :accountStatus "Actif" ;
+    :belongsTo :client_14c38e0e ;
+    :hasCard :carte_f6ec76c8 .
+
+:loc_e935e2ca a :Localisation ;
+    :locationCity "Casablanca" ;
+    :locationCountry "Maroc" ;
+    :locationLatitude "33.5731"^^xsd:float ;
+    :locationLongitude "-7.5898"^^xsd:float .
+
+:client_9fc94caa a :Client ;
+    :clientName "Client Exemple" ;
+    :hasAccount :compte_809888dd .
+
+:compte_809888dd a :CompteBancaire ;
+    :accountNumber "70012345678901234567890" ;
+    :accountIBAN "MA0011000000123456789012" ;
+    :accountBalance 3200.00 ;
+    :accountType "Courant" ;
+    :accountStatus "Actif" ;
+    :belongsTo :client_9fc94caa .
+
+:txn_98e8caca a :Transaction ;
+    :transactionID "txn-98e8caca" ;
+    :transactionAmount 16411.18 ;
+    :transactionCurrency "MAD" ;
+    :transactionTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime ;
+    :transactionStatus "Suspecte" ;
+    :hasSource :compte_809888dd ;
+    :hasLocation :loc_e935e2ca ;
+    :generatesAlert :alerte_0197005c ;
+    :hasEvidence :preuve_001 .
+
+#################################################################
+#    EXEMPLE D'INSTANCE MISE À JOUR
+#    (l'alerte utilise la sous-classe spécifique + :hasAlertEvidence)
+#################################################################
+
+:alerte_0197005c a :AlerteFraudeMontant ;
+    :alertID "c7a64f89-6570-42f2-9ae6-9df3cdc7c087" ;
+    :alertScore "0.83"^^xsd:float ;
+    :alertSeverity "Elevee" ;
+    :alertStatus "Ouverte" ;
+    :alertTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime ;
+    :triggeredBy :txn_98e8caca ;
+    :concernsClient :client_9fc94caa ;
+    :concernsAccount :compte_809888dd ;
+    :triggersRule :regle_R001 ;
+    :hasAlertEvidence :preuve_001 .
+
+:preuve_001 a :Preuve ;
+    :evidenceValue 16411.18 ;
+    :evidenceThreshold 5000.0 ;
+    :evidenceDescription "Montant dépasse le seuil critique" ;
+    :evidenceTimestamp "2026-08-31T14:05:06"^^xsd:dateTime ;
+    :hasViolatedRule :regle_R001 ;
+    :concernsTransaction :txn_98e8caca .

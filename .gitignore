@@ -1,0 +1,23 @@
+# API
+/api/
+
+# Mazbala
+/mazbala/
+
+# Ontologies drafts
+/onthologies drafts/
+
+# Ontologies
+/ontologies/
+
+# Virtuoso data
+/virtuoso_data/
+node_modules/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.vscode/
+.idea/
+*.log
+/fraudenv/
