@@ -2,396 +2,1160 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard — Détection de Fraude Bancaire</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="description" content="Tableau de bord de détection de fraude bancaire en temps réel : alertes, sévérité et analytics.">
+<title>Détection de fraude bancaire — Tableau de bord</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    padding: 20px;
-  }
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #334155;
-  }
-  h1 { font-size: 22px; font-weight: 600; color: #f1f5f9; }
-  .status {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: #94a3b8;
-  }
-  .status .dot {
-    width: 10px; height: 10px; border-radius: 50%;
-    background: #22c55e; box-shadow: 0 0 8px #22c55e;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+/* ============================================================
+   TOKENS — inspirés de la palette Power BI
+   ============================================================ */
+:root{
+  /* Surfaces */
+  --bg:#f3f2f1;
+  --card:#ffffff;
+  --card-alt:#faf9f8;
+  --border:#e1dfdd;
+  --border-soft:#edebe9;
+  --hover:#f3f2f1;
 
-  /* Onglets */
-  .tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #334155;
-  }
-  .tab {
-    background: transparent;
-    color: #94a3b8;
-    border: none;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-  }
-  .tab:hover { color: #e2e8f0; }
-  .tab.actif {
-    color: #60a5fa;
-    border-bottom-color: #60a5fa;
-    font-weight: 600;
-  }
+  /* Texte */
+  --text:#252423;
+  --text-2:#605e5c;
+  --text-3:#8a8886;
 
-  /* Sections */
-  .section { display: none; }
-  .section.actif { display: block; }
+  /* Accent Power BI */
+  --gold:#f2c811;
+  --blue:#118dff;
+  --dark-blue:#12239e;
+  --orange:#e66c37;
+  --purple:#6b007b;
+  --pink:#e044a7;
+  --violet:#744ec2;
+  --yellow:#d9b300;
+  --red:#d64550;
+  --teal:#0f9d9d;
+  --green:#107c10;
 
-  /* Stats temps réel */
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .stat {
-    background: #1e293b; border-radius: 8px;
-    padding: 14px; border-left: 3px solid #64748b;
-  }
-  .stat .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; }
-  .stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
-  .stat.critique { border-color: #ef4444; }
-  .stat.critique .value { color: #ef4444; }
-  .stat.elevee { border-color: #f59e0b; }
-  .stat.elevee .value { color: #f59e0b; }
-  .stat.moyenne { border-color: #3b82f6; }
-  .stat.moyenne .value { color: #3b82f6; }
-  .stat.total { border-color: #64748b; }
+  /* Sévérités */
+  --crit:#d64550;
+  --crit-bg:#fdeef0;
+  --high:#e66c37;
+  --high-bg:#fdf1eb;
+  --med:#118dff;
+  --med-bg:#eaf4ff;
+  --low:#8a8886;
+  --low-bg:#f3f2f1;
 
-  /* Tableau */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #1e293b;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  th {
-    text-align: left;
-    padding: 12px;
-    background: #334155;
-    font-size: 12px;
-    text-transform: uppercase;
-    color: #cbd5e1;
-    font-weight: 600;
-  }
-  td {
-    padding: 12px;
-    border-top: 1px solid #334155;
-    font-size: 13px;
-  }
-  tr.nouvelle { animation: flash 1.5s ease-out; }
-  @keyframes flash {
-    from { background: #1e40af; }
-    to { background: transparent; }
-  }
-  .badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-  }
-  .badge.Critique { background: #7f1d1d; color: #fecaca; }
-  .badge.Elevee   { background: #78350f; color: #fde68a; }
-  .badge.Moyenne  { background: #1e3a8a; color: #bfdbfe; }
-  .badge.Faible   { background: #334155; color: #cbd5e1; }
-  .regle {
-    font-family: monospace;
-    background: #334155;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-  }
-  .vide {
-    text-align: center;
-    padding: 40px;
-    color: #64748b;
-  }
+  /* Espacement */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:20px; --sp-6:24px; --sp-8:32px;
 
-  /* Analytics */
-  .analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+  /* Rayons */
+  --r-sm:2px; --r:4px; --r-lg:8px; --r-full:999px;
+
+  /* Ombres */
+  --sh:0 1.6px 3.6px rgba(0,0,0,.08), 0 0.3px 0.9px rgba(0,0,0,.06);
+  --sh-hover:0 3.2px 7.2px rgba(0,0,0,.10), 0 0.6px 1.8px rgba(0,0,0,.08);
+
+  /* Motion */
+  --ease:cubic-bezier(.33,0,.67,1);
+  --dur-fast:120ms;
+  --dur:220ms;
+
+  /* Typo */
+  --font:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMacSystemFont,
+         Roboto,'Helvetica Neue',Arial,sans-serif;
+  --font-mono:Consolas,'Cascadia Mono','Segoe UI Mono',Menlo,monospace;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  min-height:100dvh;
+  font-family:var(--font);
+  font-size:13px;
+  line-height:1.45;
+  color:var(--text);
+  background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p{margin:0}
+button{font:inherit;color:inherit}
+
+:focus-visible{
+  outline:2px solid var(--dark-blue);
+  outline-offset:2px;
+  border-radius:var(--r-sm);
+}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;
+}
+
+/* ============================================================
+   EN-TÊTE — style bandeau Power BI (filet doré + titre)
+   ============================================================ */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:var(--card);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.topbar::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto 0;
+  height:3px;
+  background:var(--gold);
+}
+.topbar-inner{
+  max-width:1600px;
+  margin:0 auto;
+  padding:var(--sp-4) var(--sp-6) var(--sp-3);
+  display:flex;
+  flex-wrap:wrap;
+  gap:var(--sp-4);
+  align-items:center;
+  justify-content:space-between;
+}
+.brand{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
+.brand-mark{
+  display:grid;place-items:center;
+  width:36px;height:36px;flex:none;
+  border-radius:var(--r);
+  background:var(--gold);
+  color:#252423;
+}
+.brand h1{
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:-.005em;
+  line-height:1.25;
+  color:var(--text);
+}
+.brand-sub{
+  font-size:12px;
+  color:var(--text-2);
+  line-height:1.35;
+}
+
+/* Pastille de connexion */
+.conn{
+  display:inline-flex;
+  align-items:center;
+  gap:var(--sp-2);
+  height:30px;
+  padding:0 var(--sp-4);
+  border-radius:var(--r-full);
+  font-size:12px;
+  font-weight:600;
+  color:var(--text-2);
+  background:var(--card-alt);
+  border:1px solid var(--border);
+}
+.conn-dot{
+  width:8px;height:8px;flex:none;border-radius:50%;
+  background:var(--green);
+}
+.conn[data-etat="connecte"]{color:#107c10;background:#f1faf1;border-color:#c7e6c7}
+.conn[data-etat="connecte"] .conn-dot{
+  background:var(--green);
+  box-shadow:0 0 0 3px rgba(16,124,16,.14);
+  animation:pulse 2.4s var(--ease) infinite;
+}
+.conn[data-etat="deconnecte"]{color:#a4262c;background:var(--crit-bg);border-color:#f3c3c6}
+.conn[data-etat="deconnecte"] .conn-dot{background:var(--crit);box-shadow:none;animation:none}
+.conn[data-etat="attente"]{color:#8a6d00;background:#fdf6e3;border-color:#f0e0a8}
+.conn[data-etat="attente"] .conn-dot{background:var(--gold);box-shadow:none;animation:none}
+
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.45;transform:scale(.8)}
+}
+
+/* ============================================================
+   ONGLETS — style ruban Power BI
+   ============================================================ */
+.tabs{
+  background:var(--card);
+  border-bottom:1px solid var(--border);
+  position:sticky;
+  top:71px;
+  z-index:19;
+}
+.tabs-inner{
+  max-width:1600px;
+  margin:0 auto;
+  padding:0 var(--sp-6);
+  display:flex;
+  gap:var(--sp-1);
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.tabs-inner::-webkit-scrollbar{display:none}
+.tab{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:var(--sp-2);
+  height:40px;
+  padding:0 var(--sp-4);
+  background:transparent;
+  border:0;
+  border-bottom:3px solid transparent;
+  color:var(--text-2);
+  font-size:13px;
+  font-weight:600;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.tab:hover{color:var(--text);background:var(--hover)}
+.tab[aria-selected="true"]{
+  color:var(--text);
+  border-bottom-color:var(--gold);
+}
+.tab svg{flex:none;opacity:.85}
+.tab[aria-selected="true"] svg{color:#8a6d00;opacity:1}
+
+/* ============================================================
+   STRUCTURE
+   ============================================================ */
+.shell{
+  max-width:1600px;
+  margin:0 auto;
+  padding:var(--sp-5) var(--sp-6) var(--sp-8);
+}
+.section{display:none}
+.section.actif{display:block;animation:fade var(--dur) var(--ease)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* ============================================================
+   CARTES KPI — style « Card » Power BI
+   ============================================================ */
+.stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:var(--sp-4);
+  margin-bottom:var(--sp-4);
+}
+.stat{
+  position:relative;
+  padding:var(--sp-4) var(--sp-5);
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  box-shadow:var(--sh);
+  transition:box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.stat:hover{box-shadow:var(--sh-hover);border-color:#c8c6c4}
+.stat-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);
+  margin-bottom:var(--sp-2);
+}
+.stat-label{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--text-2);
+}
+.stat-icon{
+  display:grid;place-items:center;
+  width:22px;height:22px;
+  border-radius:var(--r-sm);
+  background:var(--low-bg);
+  color:var(--text-3);
+  flex:none;
+}
+.stat-value{
+  font-size:30px;
+  font-weight:600;
+  line-height:1.1;
+  letter-spacing:-.02em;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.stat-note{
+  margin-top:var(--sp-1);
+  font-size:11px;
+  color:var(--text-3);
+}
+
+.stat.total   .stat-value{color:var(--text)}
+.stat.critique .stat-value{color:var(--crit)}
+.stat.elevee  .stat-value{color:var(--high)}
+.stat.moyenne .stat-value{color:var(--med)}
+
+.stat.critique .stat-icon{background:var(--crit-bg);color:var(--crit)}
+.stat.elevee   .stat-icon{background:var(--high-bg);color:var(--high)}
+.stat.moyenne  .stat-icon{background:var(--med-bg); color:var(--med)}
+.stat.total    .stat-icon{background:var(--low-bg); color:var(--text-2)}
+
+/* ============================================================
+   PANNEAU — style « visual container » Power BI
+   ============================================================ */
+.panel{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  box-shadow:var(--sh);
+  overflow:hidden;
+}
+.panel-head{
+  display:flex;
+  flex-wrap:wrap;
+  gap:var(--sp-3);
+  align-items:center;
+  justify-content:space-between;
+  padding:var(--sp-3) var(--sp-5);
+  border-bottom:1px solid var(--border-soft);
+}
+.panel-head h2{
+  font-size:13px;
+  font-weight:600;
+  color:var(--text);
+  letter-spacing:-.005em;
+}
+.panel-sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.panel-actions{display:flex;align-items:center;gap:var(--sp-3)}
+
+.pending{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:2px var(--sp-3);
+  border-radius:var(--r-full);
+  font-size:11px;
+  font-weight:600;
+  color:#8a6d00;
+  background:#fdf6e3;
+  border:1px solid #f0e0a8;
+  font-variant-numeric:tabular-nums;
+}
+.pending[hidden]{display:none}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  height:30px;
+  padding:0 var(--sp-4);
+  border-radius:var(--r);
+  font-size:12px;
+  font-weight:600;
+  color:var(--text);
+  background:var(--card);
+  border:1px solid var(--border);
+  cursor:pointer;
+  transition:background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.btn:hover{background:var(--hover);border-color:#c8c6c4}
+.btn:active{background:#edebe9}
+.btn[aria-pressed="true"]{
+  color:#8a6d00;
+  background:#fdf6e3;
+  border-color:#f0e0a8;
+}
+
+/* ============================================================
+   TABLEAU — style « Table » Power BI
+   ============================================================ */
+.table-wrap{
+  overflow:auto;
+  max-height:min(66vh,680px);
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#c8c6c4 transparent;
+}
+.table-wrap::-webkit-scrollbar{width:10px;height:10px}
+.table-wrap::-webkit-scrollbar-track{background:var(--card-alt)}
+.table-wrap::-webkit-scrollbar-thumb{
+  background:#c8c6c4;border-radius:var(--r-full);border:3px solid var(--card-alt);
+}
+.table-wrap::-webkit-scrollbar-thumb:hover{background:#a19f9d}
+
+table{
+  width:100%;
+  min-width:920px;
+  border-collapse:separate;
+  border-spacing:0;
+}
+thead th{
+  position:sticky;top:0;z-index:2;
+  text-align:left;
+  padding:var(--sp-3) var(--sp-4);
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+  color:var(--text-2);
+  background:var(--card-alt);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+tbody td{
+  padding:var(--sp-3) var(--sp-4);
+  font-size:12.5px;
+  color:var(--text);
+  background:var(--card);
+  border-bottom:1px solid var(--border-soft);
+  vertical-align:top;
+}
+tbody tr{transition:background-color var(--dur-fast) var(--ease)}
+tbody tr:hover td{background:var(--hover)}
+tbody tr:last-child td{border-bottom:0}
+
+td.heure{
+  white-space:nowrap;
+  font-family:var(--font-mono);
+  font-size:11.5px;
+  color:var(--text-2);
+  font-variant-numeric:tabular-nums;
+}
+td.desc{color:var(--text-2);max-width:380px}
+td.tx code{
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--text-2);
+  background:var(--card-alt);
+  border:1px solid var(--border-soft);
+  padding:1px 6px;
+  border-radius:var(--r-sm);
+}
+
+.regle{
+  display:inline-block;
+  font-family:var(--font-mono);
+  font-size:11px;
+  font-weight:600;
+  color:var(--text-2);
+  background:var(--card-alt);
+  border:1px solid var(--border);
+  padding:1px 7px;
+  border-radius:var(--r-sm);
+  white-space:nowrap;
+}
+
+/* Badges de sévérité — couleur + texte (jamais la couleur seule) */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:2px 9px 2px 7px;
+  border-radius:var(--r-full);
+  font-size:11px;
+  font-weight:600;
+  white-space:nowrap;
+  border:1px solid transparent;
+}
+.badge::before{
+  content:"";
+  width:6px;height:6px;flex:none;border-radius:50%;
+  background:currentColor;
+}
+.badge.Critique{color:#a4262c;background:var(--crit-bg);border-color:#f3c3c6}
+.badge.Elevee  {color:#a34a1a;background:var(--high-bg);border-color:#f5d0b8}
+.badge.Moyenne {color:#0a5aa8;background:var(--med-bg); border-color:#c2ddfb}
+.badge.Faible  {color:#605e5c;background:var(--low-bg); border-color:var(--border)}
+
+/* Nouvelle ligne : flash discret */
+@keyframes rowFlash{
+  from{background-color:#eaf4ff}
+  to  {background-color:transparent}
+}
+tr.nouvelle td{animation:rowFlash 1.6s var(--ease) both}
+
+/* État vide */
+.vide{
+  padding:var(--sp-8) var(--sp-5);
+  text-align:center;
+  color:var(--text-3);
+  font-size:12.5px;
+  background:var(--card);
+}
+.vide .vide-icone{color:#c8c6c4;margin-bottom:var(--sp-3)}
+.vide strong{
+  display:block;
+  color:var(--text-2);
+  font-size:13px;
+  font-weight:600;
+  margin-bottom:4px;
+}
+
+/* ============================================================
+   ANALYTICS — grille de visuels
+   ============================================================ */
+.analytics-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+  gap:var(--sp-4);
+}
+.card{
+  padding:var(--sp-4) var(--sp-5) var(--sp-5);
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  box-shadow:var(--sh);
+  transition:box-shadow var(--dur) var(--ease);
+}
+.card:hover{box-shadow:var(--sh-hover)}
+.card.large{grid-column:1/-1}
+.card h3{
+  display:flex;align-items:center;gap:var(--sp-2);
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--text);
+  margin-bottom:var(--sp-4);
+  padding-bottom:var(--sp-2);
+  border-bottom:1px solid var(--border-soft);
+}
+.card h3 svg{color:var(--dark-blue);flex:none;opacity:.9}
+
+.chart-vide{color:var(--text-3);font-size:12px}
+
+.bar-row{
+  display:flex;
+  align-items:center;
+  gap:var(--sp-3);
+  padding:4px 0;
+}
+.bar-label{
+  width:124px;
+  flex:none;
+  font-size:11.5px;
+  color:var(--text-2);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.bar-track{
+  flex:1;
+  height:14px;
+  min-width:40px;
+  background:var(--card-alt);
+  border:1px solid var(--border-soft);
+  border-radius:var(--r-sm);
+  overflow:hidden;
+}
+.bar-fill{
+  width:100%;
+  height:100%;
+  border-radius:0;
+  background:var(--fill,var(--blue));
+  clip-path:inset(0 calc(100% - var(--pct,0%)) 0 0);
+  transition:clip-path 520ms var(--ease);
+}
+.bar-value{
+  width:44px;
+  flex:none;
+  text-align:right;
+  font-size:12px;
+  font-weight:600;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:768px){
+  .topbar-inner{padding:var(--sp-4) var(--sp-4) var(--sp-3)}
+  .tabs-inner{padding:0 var(--sp-4)}
+  .shell{padding:var(--sp-4) var(--sp-4) var(--sp-8)}
+  .brand h1{font-size:14px}
+  .brand-sub{display:none}
+  .stat-value{font-size:26px}
+  .panel-head{padding:var(--sp-3) var(--sp-4)}
+  .card{padding:var(--sp-4)}
+  .bar-label{width:92px;font-size:11px}
+}
+@media (max-width:520px){
+  .stat{padding:var(--sp-3) var(--sp-4)}
+  .stat-value{font-size:24px}
+  .bar-label{width:78px}
+}
+
+/* ============================================================
+   ACCESSIBILITÉ — mouvement réduit
+   ============================================================ */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
   }
-  .card {
-    background: #1e293b;
-    border-radius: 8px;
-    padding: 20px;
-    border-left: 3px solid #3b82f6;
-  }
-  .card.large { grid-column: span 2; }
-  .card h3 {
-    font-size: 15px;
-    color: #cbd5e1;
-    margin-bottom: 15px;
-    font-weight: 600;
-  }
-  .barre {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    font-size: 13px;
-  }
-  .barre .label { width: 110px; color: #94a3b8; font-family: monospace; font-size: 12px; }
-  .barre .bar {
-    flex: 1;
-    height: 20px;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
-    border-radius: 4px;
-    transition: width 0.5s;
-    min-width: 4px;
-  }
-  .barre .valeur { width: 50px; text-align: right; color: #e2e8f0; font-weight: 600; }
+  .stat:hover{box-shadow:var(--sh)}
+}
+
+/* ============================================================
+   IMPRESSION
+   ============================================================ */
+@media print{
+  body{background:#fff}
+  .tabs,.panel-actions,.conn{display:none}
+  .section{display:block !important}
+  .stat,.panel,.card{box-shadow:none;border-color:#ccc;break-inside:avoid}
+}
 </style>
 </head>
 <body>
 
-<header>
-  <h1>🛡️ Détection de Fraude Bancaire — Temps Réel</h1>
-  <div class="status">
-    <div class="dot"></div>
-    <span id="status-text">Connecté</span>
+<p class="sr-only" role="status" aria-live="polite" id="live-region"></p>
+
+<!-- ===================== EN-TÊTE ===================== -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+          <path d="M12 3l7.5 3.2v5.6c0 4.6-3.1 7.9-7.5 9.2-4.4-1.3-7.5-4.6-7.5-9.2V6.2L12 3z"/>
+          <path d="M9.2 12.2l2 2 3.6-3.9"/>
+        </svg>
+      </span>
+      <div>
+        <h1>Détection de fraude bancaire</h1>
+        <p class="brand-sub">Surveillance temps réel des transactions</p>
+      </div>
+    </div>
+
+    <div class="conn" id="conn" data-etat="attente" role="status" aria-live="polite">
+      <span class="conn-dot" aria-hidden="true"></span>
+      <span id="status-text">Connexion…</span>
+    </div>
   </div>
 </header>
 
-<nav class="tabs">
-  <button class="tab actif" data-cible="temps-reel">⚡ Temps réel</button>
-  <button class="tab" data-cible="analytics">📊 Analytics</button>
+<!-- ===================== ONGLETS ===================== -->
+<nav class="tabs" role="tablist" aria-label="Vues du tableau de bord">
+  <div class="tabs-inner">
+    <button class="tab" id="tab-temps-reel" role="tab" aria-selected="true"
+            aria-controls="temps-reel" data-cible="temps-reel" tabindex="0">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      Temps réel
+    </button>
+    <button class="tab" id="tab-analytics" role="tab" aria-selected="false"
+            aria-controls="analytics" data-cible="analytics" tabindex="-1">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <line x1="12" y1="20" x2="12" y2="11"/>
+        <line x1="18" y1="20" x2="18" y2="4"/>
+        <line x1="6"  y1="20" x2="6"  y2="16"/>
+      </svg>
+      Analytics
+    </button>
+  </div>
 </nav>
 
-<!-- ======================= SECTION TEMPS RÉEL ======================= -->
-<div id="temps-reel" class="section actif">
+<main class="shell">
 
-  <div class="stats">
-    <div class="stat total">
-      <div class="label">Total alertes</div>
-      <div class="value" id="stat-total">0</div>
+  <!-- ===================== SECTION TEMPS RÉEL ===================== -->
+  <section id="temps-reel" class="section actif" role="tabpanel" aria-labelledby="tab-temps-reel" tabindex="0">
+
+    <div class="stats">
+      <article class="stat total">
+        <div class="stat-head">
+          <span class="stat-label">Total alertes</span>
+          <span class="stat-icon" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/>
+              <polyline points="2 12 12 17 22 12"/>
+            </svg>
+          </span>
+        </div>
+        <div class="stat-value" id="stat-total">0</div>
+        <p class="stat-note">Depuis l'ouverture</p>
+      </article>
+
+      <article class="stat critique">
+        <div class="stat-head">
+          <span class="stat-label">Critiques</span>
+          <span class="stat-icon" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9"  x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </span>
+        </div>
+        <div class="stat-value" id="stat-critique">0</div>
+        <p class="stat-note">Traitement immédiat</p>
+      </article>
+
+      <article class="stat elevee">
+        <div class="stat-head">
+          <span class="stat-label">Élevées</span>
+          <span class="stat-icon" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <circle cx="12" cy="12" r="9"/>
+              <line x1="12" y1="7.5" x2="12" y2="12.5"/>
+              <line x1="12" y1="16"  x2="12.01" y2="16"/>
+            </svg>
+          </span>
+        </div>
+        <div class="stat-value" id="stat-elevee">0</div>
+        <p class="stat-note">À vérifier sous 1 h</p>
+      </article>
+
+      <article class="stat moyenne">
+        <div class="stat-head">
+          <span class="stat-label">Moyennes</span>
+          <span class="stat-icon" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <circle cx="12" cy="12" r="9"/>
+              <line x1="12" y1="11" x2="12" y2="16"/>
+              <line x1="12" y1="8"  x2="12.01" y2="8"/>
+            </svg>
+          </span>
+        </div>
+        <div class="stat-value" id="stat-moyenne">0</div>
+        <p class="stat-note">File de revue</p>
+      </article>
     </div>
-    <div class="stat critique">
-      <div class="label">Critiques</div>
-      <div class="value" id="stat-critique">0</div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Flux d'alertes</h2>
+          <p class="panel-sub">Dernière alerte reçue : <span id="maj-heure">—</span></p>
+        </div>
+        <div class="panel-actions">
+          <span class="pending" id="pause-count" hidden></span>
+          <button class="btn" id="btn-pause" type="button" aria-pressed="false">
+            <svg class="icon-pause" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <rect x="6" y="4" width="4" height="16" rx="1"/>
+              <rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+            <svg class="icon-play" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 focusable="false" style="display:none">
+              <polygon points="6 3 20 12 6 21 6 3"/>
+            </svg>
+            <span class="btn-label">Pause</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap" role="region" aria-label="Tableau des alertes de fraude" tabindex="0">
+        <table aria-label="Alertes de fraude détectées">
+          <thead>
+            <tr>
+              <th scope="col">Heure</th>
+              <th scope="col">Règle</th>
+              <th scope="col">Type d'alerte</th>
+              <th scope="col">Sévérité</th>
+              <th scope="col">Description</th>
+              <th scope="col">Transaction</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr>
+              <td colspan="6" class="vide">
+                <svg class="vide-icone" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+                </svg>
+                <strong>En attente d'alertes</strong>
+                Le flux de détection est actif — les nouvelles alertes apparaîtront ici.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="stat elevee">
-      <div class="label">Élevées</div>
-      <div class="value" id="stat-elevee">0</div>
+  </section>
+
+  <!-- ===================== SECTION ANALYTICS ===================== -->
+  <section id="analytics" class="section" role="tabpanel" aria-labelledby="tab-analytics" tabindex="0">
+
+    <div class="analytics-grid">
+
+      <div class="card">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/>
+            <path d="M17 5h2.5a2.5 2.5 0 0 1 0 5H17M7 5H4.5a2.5 2.5 0 0 0 0 5H7"/>
+          </svg>
+          Top 5 règles déclenchées
+        </h3>
+        <div id="chart-regles" aria-busy="true"><p class="chart-vide">Chargement…</p></div>
+      </div>
+
+      <div class="card">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Répartition par sévérité
+        </h3>
+        <div id="chart-severite" aria-busy="true"><p class="chart-vide">Chargement…</p></div>
+      </div>
+
+      <div class="card">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="9"/>
+            <polyline points="12 7 12 12 15.5 14"/>
+          </svg>
+          Alertes par heure
+        </h3>
+        <div id="chart-heures" aria-busy="true"><p class="chart-vide">Chargement…</p></div>
+      </div>
+
+      <div class="card">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          Top 5 clients à risque
+        </h3>
+        <div id="chart-clients" aria-busy="true"><p class="chart-vide">Chargement…</p></div>
+      </div>
+
+      <div class="card large">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <line x1="12" y1="2" x2="12" y2="22"/>
+            <path d="M17 6.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          Distribution des montants
+        </h3>
+        <div id="chart-distribution" aria-busy="true"><p class="chart-vide">Chargement…</p></div>
+      </div>
+
     </div>
-    <div class="stat moyenne">
-      <div class="label">Moyennes</div>
-      <div class="value" id="stat-moyenne">0</div>
-    </div>
-  </div>
+  </section>
 
-  <table id="table">
-    <thead>
-      <tr>
-        <th>Heure</th>
-        <th>Règle</th>
-        <th>Type d'alerte</th>
-        <th>Sévérité</th>
-        <th>Description</th>
-        <th>Transaction</th>
-      </tr>
-    </thead>
-    <tbody id="tbody">
-      <tr><td colspan="6" class="vide">En attente d'alertes...</td></tr>
-    </tbody>
-  </table>
-
-</div>
-
-<!-- ======================= SECTION ANALYTICS ======================= -->
-<div id="analytics" class="section">
-
-  <div class="analytics-grid">
-
-    <div class="card">
-      <h3>🏆 Top 5 règles déclenchées</h3>
-      <div id="chart-regles"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
-    </div>
-
-    <div class="card">
-      <h3>⚠️ Répartition par sévérité</h3>
-      <div id="chart-severite"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
-    </div>
-
-    <div class="card">
-      <h3>🕐 Alertes par heure</h3>
-      <div id="chart-heures"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
-    </div>
-
-    <div class="card">
-      <h3>👤 Top 5 clients à risque</h3>
-      <div id="chart-clients"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
-    </div>
-
-    <div class="card large">
-      <h3>💰 Distribution des montants</h3>
-      <div id="chart-distribution"><p style="color:#64748b;font-size:13px">Chargement...</p></div>
-    </div>
-
-  </div>
-
-</div>
+</main>
 
 <script>
-// ==================================================================
-// ONGLETS
-// ==================================================================
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('actif'));
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('actif'));
-    tab.classList.add('actif');
-    document.getElementById(tab.dataset.cible).classList.add('actif');
-    if (tab.dataset.cible === 'analytics') chargerAnalytics();
+"use strict";
+
+/* ==================================================================
+   UTILITAIRES
+   ================================================================== */
+const echapper = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+));
+
+const $ = (id) => document.getElementById(id);
+
+/* ==================================================================
+   ONGLETS — navigation clavier conforme ARIA
+   ================================================================== */
+const onglets = Array.from(document.querySelectorAll('.tab'));
+
+function activerOnglet(tab, focus = true) {
+  onglets.forEach(t => {
+    const actif = t === tab;
+    t.setAttribute('aria-selected', String(actif));
+    t.tabIndex = actif ? 0 : -1;
+    t.classList.toggle('actif', actif);
+  });
+  document.querySelectorAll('.section').forEach(s => {
+    s.classList.toggle('actif', s.id === tab.dataset.cible);
+  });
+  if (focus) tab.focus();
+  if (tab.dataset.cible === 'analytics') chargerAnalytics();
+}
+
+onglets.forEach((tab, i) => {
+  tab.addEventListener('click', () => activerOnglet(tab, false));
+  tab.addEventListener('keydown', (e) => {
+    let cible = null;
+    if (e.key === 'ArrowRight') cible = onglets[(i + 1) % onglets.length];
+    else if (e.key === 'ArrowLeft') cible = onglets[(i - 1 + onglets.length) % onglets.length];
+    else if (e.key === 'Home') cible = onglets[0];
+    else if (e.key === 'End') cible = onglets[onglets.length - 1];
+    if (cible) { e.preventDefault(); activerOnglet(cible); }
   });
 });
 
-
-// ==================================================================
-// SECTION TEMPS RÉEL (SSE)
-// ==================================================================
+/* ==================================================================
+   TEMPS RÉEL (SSE)
+   ================================================================== */
 const stats = { total: 0, Critique: 0, Elevee: 0, Moyenne: 0, Faible: 0 };
-const tbody = document.getElementById('tbody');
+const MAX_LIGNES = 200;
+const MAX_TAMPON = 500;
+
+const tbody       = $('tbody');
+const liveRegion  = $('live-region');
+const connEl      = $('conn');
+const statusText  = $('status-text');
+const majHeureEl  = $('maj-heure');
+
+let enPause = false;
+const tampon = [];
 
 function formatHeure(ts) {
   if (!ts) return '—';
-  const t = ts['@value'] || ts;
-  return new Date(t).toLocaleTimeString('fr-FR');
+  const t = (typeof ts === 'object' && ts['@value']) ? ts['@value'] : ts;
+  const d = new Date(t);
+  return isNaN(d) ? '—' : d.toLocaleTimeString('fr-FR');
 }
 
 function classeOWL(type) {
-  return (type || '').replace('AlerteFraude', '').replace(/([A-Z])/g, ' $1').trim() || type;
+  if (!type) return '—';
+  const brut = String(type).split('#').pop();
+  return brut.replace('AlerteFraude', '').replace(/([A-Z])/g, ' $1').trim() || brut;
 }
 
-function ajouterAlerte(a) {
-  const vide = tbody.querySelector('.vide');
-  if (vide) vide.parentElement.remove();
-
+function construireLigne(a) {
   const tr = document.createElement('tr');
   tr.className = 'nouvelle';
-  const tx_id = a.triggeredBy ? (a.triggeredBy['@id'] || a.triggeredBy) : '—';
-  const regle = a.triggersRule ? (a.triggersRule['@id'] || '').split('_').pop() : a.alertType;
+
+  const txBrut = a.triggeredBy ? (a.triggeredBy['@id'] || a.triggeredBy) : '';
+  const txId   = String(txBrut).split('#').pop() || '—';
+
+  const regleBrut = a.triggersRule ? (a.triggersRule['@id'] || a.triggersRule) : '';
+  const regle = regleBrut ? String(regleBrut).split('#').pop().split('_').pop() : (a.alertType || '—');
+
+  const severite = a.alertSeverity || 'Faible';
 
   tr.innerHTML = `
-    <td>${formatHeure(a.alertTimestamp)}</td>
-    <td><span class="regle">${regle || '—'}</span></td>
-    <td>${classeOWL(a['@type'])}</td>
-    <td><span class="badge ${a.alertSeverity}">${a.alertSeverity}</span></td>
-    <td>${a.alertDescription || ''}</td>
-    <td><code style="font-size:11px;color:#94a3b8">${tx_id.split('#').pop()}</code></td>
+    <td class="heure">${echapper(formatHeure(a.alertTimestamp))}</td>
+    <td><span class="regle">${echapper(regle)}</span></td>
+    <td>${echapper(classeOWL(a['@type']))}</td>
+    <td><span class="badge ${echapper(severite)}">${echapper(severite)}</span></td>
+    <td class="desc">${echapper(a.alertDescription || '')}</td>
+    <td class="tx"><code title="${echapper(txId)}">${echapper(txId)}</code></td>
   `;
-  tbody.prepend(tr);
+  return tr;
+}
 
-  while (tbody.children.length > 200) {
+function inserer(a) {
+  const vide = tbody.querySelector('.vide');
+  if (vide) vide.closest('tr').remove();
+
+  tbody.prepend(construireLigne(a));
+
+  while (tbody.children.length > MAX_LIGNES) {
     tbody.removeChild(tbody.lastChild);
   }
 
   stats.total++;
   if (stats[a.alertSeverity] !== undefined) stats[a.alertSeverity]++;
-  document.getElementById('stat-total').textContent = stats.total;
-  document.getElementById('stat-critique').textContent = stats.Critique;
-  document.getElementById('stat-elevee').textContent = stats.Elevee;
-  document.getElementById('stat-moyenne').textContent = stats.Moyenne;
+
+  $('stat-total').textContent    = stats.total;
+  $('stat-critique').textContent = stats.Critique;
+  $('stat-elevee').textContent   = stats.Elevee;
+  $('stat-moyenne').textContent  = stats.Moyenne;
+
+  majHeureEl.textContent = new Date().toLocaleTimeString('fr-FR');
+
+  if (a.alertSeverity === 'Critique') {
+    liveRegion.textContent = `Nouvelle alerte critique : ${classeOWL(a['@type'])}`;
+  }
 }
 
-// Chargement initial des alertes déjà présentes
-fetch('/alertes').then(r => r.json()).then(liste => {
-  liste.reverse().forEach(ajouterAlerte);
+function ajouterAlerte(a) {
+  if (enPause) {
+    tampon.push(a);
+    if (tampon.length > MAX_TAMPON) tampon.shift();
+    majCompteurPause();
+    return;
+  }
+  inserer(a);
+}
+
+/* --- Pause / reprise --------------------------------------------- */
+const btnPause   = $('btn-pause');
+const pauseCount = $('pause-count');
+
+function majCompteurPause() {
+  if (tampon.length === 0) {
+    pauseCount.hidden = true;
+    pauseCount.textContent = '';
+  } else {
+    pauseCount.hidden = false;
+    pauseCount.textContent = `+${tampon.length} en attente`;
+  }
+}
+
+btnPause.addEventListener('click', () => {
+  enPause = !enPause;
+  btnPause.setAttribute('aria-pressed', String(enPause));
+  btnPause.querySelector('.btn-label').textContent = enPause ? 'Reprendre' : 'Pause';
+  btnPause.querySelector('.icon-pause').style.display = enPause ? 'none' : '';
+  btnPause.querySelector('.icon-play').style.display  = enPause ? '' : 'none';
+
+  if (!enPause) {
+    const lot = tampon.splice(0);
+    lot.forEach(inserer);
+    majCompteurPause();
+  }
 });
 
-// Connexion SSE
+/* --- Chargement initial ------------------------------------------ */
+fetch('/alertes')
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(liste => {
+    if (!Array.isArray(liste)) return;
+    liste.slice().reverse().forEach(inserer);
+  })
+  .catch(err => console.error('Chargement initial des alertes :', err));
+
+/* --- Flux SSE ----------------------------------------------------- */
+function majConnexion(etat, texte) {
+  connEl.dataset.etat = etat;
+  statusText.textContent = texte;
+}
+
 const evtSource = new EventSource('/stream');
+
+evtSource.onopen = () => majConnexion('connecte', 'Connecté (temps réel)');
+
 evtSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
+  let data;
+  try { data = JSON.parse(event.data); }
+  catch { return; }
+
   if (data.type === 'connected') {
-    document.getElementById('status-text').textContent = 'Connecté (SSE)';
+    majConnexion('connecte', 'Connecté (temps réel)');
     return;
   }
+  majConnexion('connecte', 'Connecté (temps réel)');
   ajouterAlerte(data);
 };
+
 evtSource.onerror = () => {
-  document.getElementById('status-text').textContent = 'Déconnecté';
+  majConnexion('deconnecte', 'Reconnexion…');
 };
 
+/* ==================================================================
+   ANALYTICS — palette Power BI
+   ================================================================== */
+const SEV_COLORS = {
+  'Critique': '#d64550',
+  'Elevee':   '#e66c37',
+  'Moyenne':  '#118dff',
+  'Faible':   '#8a8886'
+};
 
-// ==================================================================
-// SECTION ANALYTICS
-// ==================================================================
-function rendreBarres(containerId, data, cleLabel, cleValeur, couleur) {
-  const conteneur = document.getElementById(containerId);
-  if (!data || data.length === 0) {
-    conteneur.innerHTML = '<p style="color:#64748b;font-size:13px">Aucune donnée</p>';
+const COULEURS = {
+  regles:       '#d64550',
+  heures:       '#118dff',
+  clients:      '#744ec2',
+  distribution: '#0f9d9d'
+};
+
+function couleurSeverite(label) {
+  return SEV_COLORS[String(label)] || SEV_COLORS['Faible'];
+}
+
+function rendreBarres(containerId, data, cleLabel, cleValeur, fill) {
+  const conteneur = $(containerId);
+  if (!conteneur) return;
+
+  conteneur.removeAttribute('aria-busy');
+  const dejaRendu = conteneur.dataset.rendu === '1';
+
+  if (!Array.isArray(data) || data.length === 0) {
+    conteneur.innerHTML = '<p class="chart-vide">Aucune donnée sur la période</p>';
     return;
   }
-  const max = Math.max(...data.map(d => parseInt(d[cleValeur])));
-  conteneur.innerHTML = data.map(d => {
-    const pct = max > 0 ? (parseInt(d[cleValeur]) / max * 100).toFixed(0) : 0;
-    const label = String(d[cleLabel]).split('#').pop().split('/').pop();
-    return `
-      <div class="barre">
-        <span class="label">${label}</span>
-        <div class="bar" style="width:${pct}%;background:${couleur}"></div>
-        <span class="valeur">${d[cleValeur]}</span>
-      </div>`;
+
+  const valeurs = data.map(d => parseInt(d[cleValeur], 10) || 0);
+  const max = Math.max(...valeurs, 1);
+
+  conteneur.innerHTML = data.map((d, i) => {
+    const n   = valeurs[i];
+    const pct = Math.round(n / max * 100);
+    const brut  = String(d[cleLabel] ?? '—');
+    const label = brut.split('#').pop().split('/').pop();
+    const couleur = (typeof fill === 'function') ? fill(label) : fill;
+
+    return `<div class="bar-row">
+      <span class="bar-label" title="${echapper(brut)}">${echapper(label)}</span>
+      <div class="bar-track" aria-hidden="true">
+        <div class="bar-fill" style="--pct:${dejaRendu ? pct : 0}%;--fill:${couleur}"></div>
+      </div>
+      <span class="bar-value">${n}</span>
+    </div>`;
   }).join('');
-}
 
-async function chargerAnalytics() {
-  try {
-    const r = await fetch('/analytics');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-
-    rendreBarres('chart-regles',       data.top_regles,   'regle',    'nb', 'linear-gradient(90deg,#ef4444,#f87171)');
-    rendreBarres('chart-severite',     data.par_severite, 'severite', 'nb', 'linear-gradient(90deg,#f59e0b,#fbbf24)');
-    rendreBarres('chart-heures',       data.par_heure,    'heure',    'nb', 'linear-gradient(90deg,#3b82f6,#60a5fa)');
-    rendreBarres('chart-clients',      data.top_clients,  'client',   'nb', 'linear-gradient(90deg,#8b5cf6,#a78bfa)');
-    rendreBarres('chart-distribution', data.distribution, 'tranche',  'nb', 'linear-gradient(90deg,#10b981,#34d399)');
-  } catch (e) {
-    console.error('Erreur analytics:', e);
-    ['chart-regles','chart-severite','chart-heures','chart-clients','chart-distribution']
-      .forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '<p style="color:#ef4444;font-size:13px">Erreur de chargement</p>';
+  if (!dejaRendu) {
+    conteneur.dataset.rendu = '1';
+    requestAnimationFrame(() => {
+      conteneur.querySelectorAll('.bar-fill').forEach((el, i) => {
+        const pct = Math.round(valeurs[i] / max * 100);
+        setTimeout(() => el.style.setProperty('--pct', pct + '%'), 35 * i);
       });
+    });
   }
 }
 
-// Rafraîchit les analytics toutes les 10 secondes si l'onglet est actif
+const CHARTS = ['chart-regles','chart-severite','chart-heures','chart-clients','chart-distribution'];
+
+let chargementEnCours = false;
+
+async function chargerAnalytics() {
+  if (chargementEnCours) return;
+  chargementEnCours = true;
+
+  try {
+    const r = await fetch('/analytics');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+
+    rendreBarres('chart-regles',       data.top_regles,   'regle',    'nb', COULEURS.regles);
+    rendreBarres('chart-severite',     data.par_severite, 'severite', 'nb', couleurSeverite);
+    rendreBarres('chart-heures',       data.par_heure,    'heure',    'nb', COULEURS.heures);
+    rendreBarres('chart-clients',      data.top_clients,  'client',   'nb', COULEURS.clients);
+    rendreBarres('chart-distribution', data.distribution, 'tranche',  'nb', COULEURS.distribution);
+
+  } catch (err) {
+    console.error('Erreur analytics :', err);
+    CHARTS.forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.removeAttribute('aria-busy');
+        el.innerHTML = '<p class="chart-vide" style="color:#a4262c">Erreur de chargement des données</p>';
+      }
+    });
+  } finally {
+    chargementEnCours = false;
+  }
+}
+
+/* Rafraîchissement automatique — uniquement si l'onglet est visible */
 setInterval(() => {
-  if (document.getElementById('analytics').classList.contains('actif')) {
+  const panneau = $('analytics');
+  if (panneau && panneau.classList.contains('actif') && !document.hidden) {
     chargerAnalytics();
   }
 }, 10000);
+
+/* Recharge immédiate au retour sur l'onglet navigateur */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && $('analytics').classList.contains('actif')) {
+    chargerAnalytics();
+  }
+});
 </script>
 
 </body>

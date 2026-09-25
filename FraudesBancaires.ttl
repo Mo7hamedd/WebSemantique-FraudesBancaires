@@ -41,6 +41,8 @@
     rdfs:label "Preuve" ;
     rdfs:comment "Élément de preuve justifiant une alerte de fraude (déclaration explicite - correction OWL 2 DL)." .
 
+
+
 #################################################################
 #    CLASSES : AlerteFraude et sous-classes (une par règle)
 #################################################################
@@ -99,6 +101,10 @@
     rdfs:label "Alerte Fraude Localisation" ;
     rdfs:comment "Transaction incohérente avec la localisation actuelle du client (R010)." .
 
+:AlerteFraudeVoyageImpossible a owl:Class ;
+    rdfs:subClassOf :AlerteFraude ;
+    rdfs:label "Alerte Fraude Voyage Impossible" ;
+    rdfs:comment "Transaction avec une vitesse de déplacement physiquement impossible (R011)." .
 # Disjointness : une alerte ne peut appartenir qu'à un seul type à la fois
 # CORRECTION : remplacement des 45 déclarations owl:disjointWith par paires
 # par un unique bloc owl:AllDisjointClasses (recommandation OWL 2)
@@ -112,7 +118,8 @@
                   :AlerteFraudeHistorique
                   :AlerteFraudeSolde
                   :AlerteFraudePlafond
-                  :AlerteFraudeLocalisation ) .
+                  :AlerteFraudeLocalisation
+                  :AlerteFraudeVoyageImpossible  ) .
 
 #################################################################
 #    PROPRIÉTÉS D'OBJET
@@ -503,6 +510,12 @@
     :ruleID "R010" ;
     :ruleName "Localisation incohérente" ;
     :ruleDescription "Transaction ≠ localisation actuelle du client" ;
+    :ruleStatus "Actif" .
+:regle_R011 a :Regle ;
+    :ruleID "R011" ;
+    :ruleName "Voyage impossible" ;
+    :ruleDescription "Vitesse de déplacement > 900 km/h entre deux transactions" ;
+    :ruleThreshold "900.0"^^xsd:float ;
     :ruleStatus "Actif" .
 
 #################################################################

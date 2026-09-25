@@ -23,8 +23,6 @@ from kafka import KafkaConsumer, KafkaProducer
 
 from sparql_engine import FraudEngine
 
-# ---------- Configuration ----------
-#KAFKA_SERVER   = "localhost:9092"
 import os
 KAFKA_SERVER   = os.environ.get("KAFKA_SERVER", "localhost:9092")
 TOPIC_IN       = "transactions"
@@ -32,7 +30,7 @@ TOPIC_OUT      = "alertes"
 GROUP_ID       = "detection-groupe"
 NS             = "http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#"
 
-# ---------- Initialisation ----------
+
 print("[INFO] Initialisation du moteur SPARQL...")
 engine = FraudEngine()
 print("[OK] Moteur SPARQL prêt")

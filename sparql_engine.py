@@ -114,7 +114,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 <{self._uri(tx)}> :usesCard ?carte ; :transactionTimestamp ?ts .
                 ?autre :usesCard ?carte ; :transactionTimestamp ?ts2 .
                 FILTER(?ts2 <= ?ts)
-                FILTER(bif:datediff('minute', ?ts2, ?ts) <= 5)
+                FILTER(?ts2 >= ?ts - "PT5M"^^xsd:duration)
               }}
             }}
         """)

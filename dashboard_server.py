@@ -16,12 +16,12 @@ import json
 import threading
 import time
 from collections import deque
-
+import os
 from flask import Flask, Response, jsonify, send_from_directory
 from kafka import KafkaConsumer
 from SPARQLWrapper import SPARQLWrapper, JSON as SPARQL_JSON
 
-# ---------- Configuration Virtuoso ----------
+
 #VIRTUOSO_ENDPOINT = "http://localhost:8890/sparql"
 #VIRTUOSO_GRAPH    = "http://localhost:8890/fraudes"
 VIRTUOSO_ENDPOINT = os.environ.get("VIRTUOSO_ENDPOINT", "http://localhost:8890/sparql")
