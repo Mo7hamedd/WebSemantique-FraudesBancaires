@@ -12,6 +12,7 @@ Puis :
          -H "Content-Type: application/json" \
          -d '{"montant": 7500, "devise": "MAD", "type": "Paiement en ligne",
               "pays": "Maroc", "ville": "Casablanca",
+              "latitude": 33.5731, "longitude": -7.5898,
               "compte": "compte_809888dd", "carte": "carte_test_809888dd"}'
 """
 
@@ -23,7 +24,6 @@ from flask import Flask, jsonify, request
 from kafka import KafkaProducer
 
 # ---------- Configuration ----------
-#KAFKA_SERVER = "localhost:9092"
 import os
 KAFKA_SERVER = os.environ.get("KAFKA_SERVER", "localhost:9092")
 TOPIC        = "transactions"
@@ -31,7 +31,6 @@ NS           = "http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancair
 
 app = Flask(__name__)
 
-# Producteur Kafka initialisé au démarrage
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_SERVER,
     value_serializer=lambda v: json.dumps(v).encode("utf-8"),
@@ -45,7 +44,7 @@ def _bad_request(msg):
 
 def _valider(data):
     """Vérifie que les champs obligatoires sont présents."""
-    obligatoires = ["montant", "pays", "ville", "compte"]
+    obligatoires = ["montant", "pays", "ville", "compte", "latitude", "longitude"]
     for champ in obligatoires:
         if champ not in data:
             return f"Champ obligatoire manquant : '{champ}'"
@@ -53,6 +52,15 @@ def _valider(data):
         float(data["montant"])
     except (TypeError, ValueError):
         return "'montant' doit être numérique"
+    try:
+        lat = float(data["latitude"])
+        lng = float(data["longitude"])
+    except (TypeError, ValueError):
+        return "'latitude' et 'longitude' doivent être numériques"
+    if not (-90.0 <= lat <= 90.0):
+        return "'latitude' doit être entre -90 et 90"
+    if not (-180.0 <= lng <= 180.0):
+        return "'longitude' doit être entre -180 et 180"
     return None
 
 
@@ -60,7 +68,13 @@ def _construire_jsonld(data):
     """Transforme le JSON reçu en message JSON-LD aligné sur l'ontologie."""
     tx_id  = f"txn_{uuid.uuid4().hex[:8]}"
     loc_id = f"loc_{uuid.uuid4().hex[:8]}"
-    ts     = datetime.now().isoformat(timespec="seconds")
+
+    # Permet de simuler un timestamp pour tester R011 (voyage impossible).
+    # Si absent, on utilise l'heure courante.
+    if data.get("timestamp"):
+        ts = data["timestamp"]
+    else:
+        ts = datetime.now().isoformat(timespec="seconds")
 
     message = {
         "@context": {
@@ -81,16 +95,16 @@ def _construire_jsonld(data):
         "hasLocation": {
             "@type": "Localisation",
             "@id": loc_id,
-            "locationCountry": data["pays"],
-            "locationCity":    data["ville"],
+            "locationCountry":   data["pays"],
+            "locationCity":      data["ville"],
+            "locationLatitude":  {"@value": float(data["latitude"]),  "@type": "xsd:float"},
+            "locationLongitude": {"@value": float(data["longitude"]), "@type": "xsd:float"},
         },
     }
 
-    # Carte optionnelle
     if data.get("carte"):
         message["usesCard"] = {"@id": data["carte"]}
 
-    # Commerçant optionnel
     if data.get("commercant"):
         message["transactionMerchant"] = data["commercant"]
 

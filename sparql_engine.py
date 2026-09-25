@@ -3,7 +3,7 @@ sparql_engine.py
 ================
 Moteur de détection de fraude 100% SPARQL sur Virtuoso.
 
-Contient les 10 règles (R001 à R010) sous forme de fonctions Python.
+Contient les 11 règles (R001 à R011) sous forme de fonctions Python.
 Chaque fonction envoie une requête SPARQL à Virtuoso et retourne
 la liste des détections (vide si la règle ne se déclenche pas).
 
@@ -19,8 +19,6 @@ import os
 
 class FraudEngine:
 
-    ##ENDPOINT = "http://localhost:8890/sparql"
-    ##GRAPH    = "http://localhost:8890/fraudes"
     ENDPOINT = os.environ.get("VIRTUOSO_ENDPOINT", "http://localhost:8890/sparql")
     GRAPH    = os.environ.get("VIRTUOSO_GRAPH",    "http://localhost:8890/fraudes")
     PREFIXES = """
@@ -40,21 +38,18 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
     # ------------------------------------------------------------------ #
 
     def _select(self, query):
-        """Envoie une requête SELECT et retourne les lignes (liste de dicts)."""
         self.sparql.setQuery(self.PREFIXES + query)
         result = self.sparql.query().convert()
         return result["results"]["bindings"]
 
     def _val(self, row, key):
-        """Extrait la valeur d'une variable dans une ligne de résultat."""
         return row[key]["value"] if key in row else None
 
     # ------------------------------------------------------------------ #
-    # Les 10 règles                                                      #
+    # Les 10 règles existantes (R001 à R010) — inchangées                #
     # ------------------------------------------------------------------ #
 
     def r001_montant(self, tx):
-        """R001 : montant > seuil critique (lu dans l'ontologie)."""
         rows = self._select(f"""
             SELECT ?montant ?seuil WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -71,7 +66,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r002_pays(self, tx):
-        """R002 : pays de la transaction != pays habituel du client."""
         rows = self._select(f"""
             SELECT ?paysTx ?paysHab WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -91,7 +85,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r003_heure(self, tx):
-        """R003 : transaction entre 23h et 6h."""
         rows = self._select(f"""
             SELECT ?heure WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -107,7 +100,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r004_frequence(self, tx):
-        """R004 : > 10 transactions en 5 min sur la même carte."""
         rows = self._select(f"""
             SELECT (COUNT(?autre) AS ?nb) WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -128,7 +120,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                  "detail": f"{nb} transactions en 5 min (seuil 10)"}]
 
     def r005_cumul(self, tx):
-        """R005 : cumul journalier > 10000."""
         rows = self._select(f"""
             SELECT (SUM(?m) AS ?cumul) WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -141,7 +132,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         """)
         if not rows:
             return []
-        # Vérifie que ?cumul est bien présent ET non vide
         if "cumul" not in rows[0] or not rows[0]["cumul"]["value"]:
             return []
         cumul = float(rows[0]["cumul"]["value"])
@@ -150,8 +140,8 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         return [{"regle": "R005", "severite": "Elevee",
                  "cumul": cumul,
                  "detail": f"Cumul journalier {cumul:.0f} > 10000"}]
+
     def r006_multipays(self, tx):
-        """R006 : > 2 pays en 1h sur la même carte."""
         rows = self._select(f"""
             SELECT (COUNT(DISTINCT ?pays) AS ?nb) WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -173,7 +163,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                  "detail": f"{nb} pays en 1h (seuil 2)"}]
 
     def r007_historique(self, tx):
-        """R007 : montant > 3x la moyenne historique du client."""
         rows = self._select(f"""
             SELECT ?montant ?moyenne ?nb WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -198,7 +187,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r008_solde(self, tx):
-        """R008 : retrait > solde disponible."""
         rows = self._select(f"""
             SELECT ?montant ?solde WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -218,7 +206,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r009_plafond(self, tx):
-        """R009 : montant > plafond de la carte."""
         rows = self._select(f"""
             SELECT ?montant ?plafond WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -237,7 +224,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                 for r in rows]
 
     def r010_localisation(self, tx):
-        """R010 : localisation transaction != localisation actuelle client."""
         rows = self._select(f"""
             SELECT ?paysTx ?villeTx ?paysCur ?villeCur WHERE {{
               GRAPH <{self.GRAPH}> {{
@@ -257,12 +243,110 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                  "paysCur": self._val(r, "paysCur"),
                  "detail": f"Tx {self._val(r,'villeTx')}/{self._val(r,'paysTx')} != actuel {self._val(r,'villeCur')}/{self._val(r,'paysCur')}"}
                 for r in rows]
-        # ------------------------------------------------------------------ #
+
+    # ------------------------------------------------------------------ #
+    # R011 — VOYAGE IMPOSSIBLE (nouvelle règle)                          #
+    # ------------------------------------------------------------------ #
+
+    def r011_voyage_impossible(self, tx):
+        """
+        R011 : deux transactions successives sur la même carte donnent
+        une vitesse implicite > 900 km/h (seuil lu dans l'ontologie).
+        Utilise la formule de Haversine en SPARQL (fonctions Virtuoso).
+        """
+        rows = self._select(f"""
+            SELECT ?txn1 ?ville1 ?pays1 ?ville2 ?pays2
+                   ?dist ?deltaH ?vitesse ?seuil WHERE {{
+
+              GRAPH <{self.GRAPH}> {{
+
+                # Transaction courante (txn2)
+                <{self._uri(tx)}> :usesCard ?carte ;
+                                  :transactionTimestamp ?ts2 ;
+                                  :hasLocation ?loc2 .
+                ?loc2 :locationLatitude  ?lat2 ;
+                      :locationLongitude ?lon2 ;
+                      :locationCity      ?ville2 ;
+                      :locationCountry   ?pays2 .
+
+                # Transaction précédente sur la même carte (txn1)
+                ?txn1 :usesCard ?carte ;
+                      :transactionTimestamp ?ts1 ;
+                      :hasLocation ?loc1 .
+                ?loc1 :locationLatitude  ?lat1 ;
+                      :locationLongitude ?lon1 ;
+                      :locationCity      ?ville1 ;
+                      :locationCountry   ?pays1 .
+
+                FILTER(?ts1 < ?ts2)
+
+                # Empêche de comparer à une transaction plus récente
+                # que txn1 mais plus ancienne que txn2 (garde la plus récente)
+                FILTER NOT EXISTS {{
+                  ?txnX :usesCard ?carte ; :transactionTimestamp ?tsX .
+                  FILTER(?ts1 < ?tsX && ?tsX < ?ts2)
+                }}
+
+                # Fenêtre max : 6 heures
+                BIND(bif:datediff('minute', ?ts1, ?ts2) / 60.0 AS ?deltaH)
+                FILTER(?deltaH > 0 && ?deltaH <= 6)
+
+                # --- Haversine (Virtuoso : bif:pi(), bif:sin, bif:cos, bif:asin, bif:sqrt) ---
+                BIND(?lat1 * bif:pi() / 180.0 AS ?phi1)
+                BIND(?lat2 * bif:pi() / 180.0 AS ?phi2)
+                BIND((?lat2 - ?lat1) * bif:pi() / 180.0 AS ?dphi)
+                BIND((?lon2 - ?lon1) * bif:pi() / 180.0 AS ?dlambda)
+
+                BIND(
+                  bif:sin(?dphi/2) * bif:sin(?dphi/2) +
+                  bif:cos(?phi1) * bif:cos(?phi2) *
+                  bif:sin(?dlambda/2) * bif:sin(?dlambda/2)
+                  AS ?a
+                )
+                BIND(2 * bif:asin(bif:sqrt(?a)) AS ?c)
+                BIND(6371.0 * ?c AS ?dist)
+
+                # Seuil lu depuis l'ontologie (regle_R011 :ruleThreshold 900.0)
+                ?r :ruleID "R011" ; :ruleThreshold ?seuil .
+
+                BIND(?dist / ?deltaH AS ?vitesse)
+                FILTER(?vitesse > ?seuil)
+              }}
+            }}
+        """)
+
+        resultats = []
+        for r in rows:
+            v1   = self._val(r, "ville1")
+            p1   = self._val(r, "pays1")
+            v2   = self._val(r, "ville2")
+            p2   = self._val(r, "pays2")
+            dist = float(self._val(r, "dist"))
+            dh   = float(self._val(r, "deltaH"))
+            vit  = float(self._val(r, "vitesse"))
+            seuil = float(self._val(r, "seuil"))
+            txn1 = self._val(r, "txn1").split("#")[-1]
+            resultats.append({
+                "regle":    "R011",
+                "severite": "Critique",
+                "txn_precedente": txn1,
+                "de":  f"{v1}, {p1}",
+                "vers": f"{v2}, {p2}",
+                "distance_km": round(dist, 1),
+                "delta_h":     round(dh, 3),
+                "vitesse_kmh": round(vit, 1),
+                "seuil":       seuil,
+                "detail": (f"Voyage impossible : {v1} ({p1}) → {v2} ({p2}) "
+                           f"en {dh:.2f} h, {dist:.0f} km → {vit:.0f} km/h "
+                           f"(seuil {seuil:.0f} km/h)")
+            })
+        return resultats
+
+    # ------------------------------------------------------------------ #
     # Écriture dans Virtuoso                                             #
     # ------------------------------------------------------------------ #
 
     def _update(self, query):
-        """Envoie une requête INSERT/DELETE à Virtuoso via POST."""
         import urllib.request
         import urllib.parse
 
@@ -280,17 +364,14 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         with urllib.request.urlopen(req) as resp:
             return resp.read().decode("utf-8")
 
-        
     def inserer_transaction(self, tx):
         """
-        Insère une nouvelle transaction + sa localisation dans Virtuoso.
+        Insère une nouvelle transaction + sa localisation (avec coordonnées)
+        dans Virtuoso.
 
         Args:
-            tx (dict) : doit contenir id, montant, devise, type,
-                        pays, ville, date, compte, carte (optionnel).
-
-        Returns:
-            str : l'ID court de la transaction insérée (ex: 'txn_abc123').
+            tx (dict) : id, montant, devise, type, pays, ville,
+                        latitude, longitude, date, compte, carte (optionnel).
         """
         import uuid
 
@@ -303,8 +384,23 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         date    = tx.get("date", "2026-01-01T00:00:00")
         compte  = tx.get("compte")
         carte   = tx.get("carte")
+        lat     = tx.get("latitude")
+        lng     = tx.get("longitude")
 
         loc_id = f"loc_{uuid.uuid4().hex[:8]}"
+
+        # Localisation : on ajoute lat/lng seulement s'ils sont fournis
+        loc_triples = [
+            f":{loc_id} a :Localisation ;",
+            f'  :locationCountry "{pays}" ;',
+            f'  :locationCity "{ville}"',
+        ]
+        if lat is not None and lng is not None:
+            loc_triples[-1] += " ;"
+            loc_triples.append(f'  :locationLatitude  {float(lat)} ;')
+            loc_triples.append(f'  :locationLongitude {float(lng)} .')
+        else:
+            loc_triples[-1] += " ."
 
         triples = [
             f":{tx_id} a :Transaction ;",
@@ -314,10 +410,8 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             f'  :transactionType "{type_tx}" ;',
             f'  :transactionTimestamp "{date}"^^xsd:dateTime ;',
             f"  :hasLocation :{loc_id} .",
-            f":{loc_id} a :Localisation ;",
-            f'  :locationCountry "{pays}" ;',
-            f'  :locationCity "{ville}" .',
-        ]
+        ] + loc_triples
+
         if compte:
             triples.append(f":{tx_id} :hasSource :{compte} .")
         if carte:
@@ -334,6 +428,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         """
         self._update(query)
         return tx_id
+
     def inserer_alerte(self, tx_id, alerte):
         """Insère une alerte typée OWL + sa preuve dans Virtuoso."""
         import uuid
@@ -355,8 +450,12 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             "R008": "AlerteFraudeSolde",
             "R009": "AlerteFraudePlafond",
             "R010": "AlerteFraudeLocalisation",
+            "R011": "AlerteFraudeVoyageImpossible",
         }
         classe = classes.get(alerte["regle"], "AlerteFraude")
+
+        # Échappe les guillemets dans le détail
+        detail = alerte["detail"].replace('"', '\\"')
 
         query = f"""
             INSERT DATA {{
@@ -367,13 +466,13 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                   :alertSeverity "{alerte['severite']}" ;
                   :alertStatus "Ouverte" ;
                   :alertTimestamp "{now}"^^xsd:dateTime ;
-                  :alertDescription "{alerte['detail']}" ;
+                  :alertDescription "{detail}" ;
                   :triggeredBy {tx_uri} ;
                   :triggersRule :regle_{alerte['regle']} ;
                   :hasAlertEvidence {preuve_uri} .
 
                 {preuve_uri} a :Preuve ;
-                  :evidenceDescription "{alerte['detail']}" ;
+                  :evidenceDescription "{detail}" ;
                   :evidenceTimestamp "{now}"^^xsd:dateTime ;
                   :concernsTransaction {tx_uri} ;
                   :hasViolatedRule :regle_{alerte['regle']} .
@@ -383,24 +482,24 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             }}
         """
         self._update(query)
-        return alerte_uri    
+        return alerte_uri
+
     # ------------------------------------------------------------------ #
     # Orchestration                                                      #
     # ------------------------------------------------------------------ #
 
     def _uri(self, tx_id):
-        """Construit l'URI complète depuis l'ID court (ex: txn_98e8caca)."""
         if tx_id.startswith("http://"):
             return tx_id
         return f"http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#{tx_id}"
 
     def detecter(self, tx_id, journaliser=True):
-        """Exécute les 10 règles et insère les alertes dans Virtuoso."""
+        """Exécute les 11 règles et insère les alertes dans Virtuoso."""
         regles = [
             self.r001_montant, self.r002_pays, self.r003_heure,
             self.r004_frequence, self.r005_cumul, self.r006_multipays,
             self.r007_historique, self.r008_solde, self.r009_plafond,
-            self.r010_localisation,
+            self.r010_localisation, self.r011_voyage_impossible,
         ]
         alertes = []
         for regle in regles:
@@ -412,7 +511,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                     alertes.append(a)
             except Exception as e:
                 print(f"[ERREUR] {regle.__name__} : {e}")
-        return alertes    
+        return alertes
 
 
 # ------------------------------------------------------------------ #
@@ -422,21 +521,15 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
 if __name__ == "__main__":
     engine = FraudEngine()
 
-    # ---------- Test 1 : détection sur transaction existante ----------
-    print("=== Test 1 : détection sur txn_98e8caca ===")
-    alertes = engine.detecter("txn_98e8caca", journaliser=False)
-    for a in alertes:
-        print(f"  [{a['regle']}] {a['detail']}")
-    print(f"  → {len(alertes)} alerte(s)\n")
-
-    # ---------- Test 2 : insertion d'une nouvelle transaction ----------
-    print("=== Test 2 : insertion d'une nouvelle transaction ===")
+    print("=== Test : insertion d'une transaction avec coordonnées ===")
     nouvelle = {
         "montant": 7500.0,
         "devise": "MAD",
         "type": "Paiement en ligne",
         "pays": "Maroc",
         "ville": "Casablanca",
+        "latitude": 33.5731,
+        "longitude": -7.5898,
         "date": "2026-09-11T03:15:00",
         "compte": "compte_809888dd",
         "carte": "carte_test_809888dd",
@@ -444,8 +537,7 @@ if __name__ == "__main__":
     tx_id = engine.inserer_transaction(nouvelle)
     print(f"  → Transaction insérée : {tx_id}\n")
 
-    # ---------- Test 3 : détection immédiate sur la nouvelle tx ----------
-    print(f"=== Test 3 : détection sur {tx_id} ===")
+    print(f"=== Détection sur {tx_id} ===")
     alertes = engine.detecter(tx_id, journaliser=False)
     for a in alertes:
         print(f"  [{a['regle']}] {a['detail']}")

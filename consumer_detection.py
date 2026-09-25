@@ -5,8 +5,8 @@ Consumer Kafka qui détecte la fraude en temps réel.
 
 Pipeline :
     1. Lit un message JSON-LD sur le topic "transactions"
-    2. Insère la transaction dans Virtuoso
-    3. Exécute les 10 règles SPARQL
+    2. Insère la transaction dans Virtuoso (avec lat/lng)
+    3. Exécute les 11 règles SPARQL
     4. Publie les alertes sur le topic "alertes"
 
 Usage :
@@ -56,14 +56,18 @@ print(f"[OK] Producer prêt pour '{TOPIC_OUT}'")
 # ---------- Transformation JSON-LD → dict simple ----------
 def extraire_transaction(message):
     """Transforme un message JSON-LD en dict exploitable par sparql_engine."""
+    loc = message["hasLocation"]
     return {
         "id":      message["@id"],
         "montant": message["transactionAmount"]["@value"],
         "devise":  message.get("transactionCurrency", "MAD"),
         "type":    message.get("transactionType", "Paiement"),
         "date":    message["transactionTimestamp"]["@value"],
-        "pays":    message["hasLocation"]["locationCountry"],
-        "ville":   message["hasLocation"]["locationCity"],
+        "pays":    loc["locationCountry"],
+        "ville":   loc["locationCity"],
+        # Coordonnées (peuvent être absentes sur d'anciens messages)
+        "latitude":  loc.get("locationLatitude",  {}).get("@value") if isinstance(loc.get("locationLatitude"), dict)  else loc.get("locationLatitude"),
+        "longitude": loc.get("locationLongitude", {}).get("@value") if isinstance(loc.get("locationLongitude"), dict) else loc.get("locationLongitude"),
         "compte":  message["hasSource"]["@id"],
         "carte":   message.get("usesCard", {}).get("@id") if message.get("usesCard") else None,
     }
@@ -86,6 +90,7 @@ def construire_message_alerte(alerte, tx_id):
         "R008": "AlerteFraudeSolde",
         "R009": "AlerteFraudePlafond",
         "R010": "AlerteFraudeLocalisation",
+        "R011": "AlerteFraudeVoyageImpossible",
     }
     classe = classes.get(alerte["regle"], "AlerteFraude")
 
@@ -125,7 +130,8 @@ def traiter(message, numero):
 
     print(f"\n[{numero:03d}] ─── {tx['id']} ───")
     print(f"     Montant : {tx['montant']} {tx['devise']} | {tx['type']}")
-    print(f"     Lieu    : {tx['ville']}, {tx['pays']}")
+    print(f"     Lieu    : {tx['ville']}, {tx['pays']} "
+          f"(lat={tx['latitude']}, lng={tx['longitude']})")
     print(f"     Compte  : {tx['compte']} | Carte : {tx['carte'] or 'aucune'}")
 
     # 1. Insertion dans Virtuoso
@@ -136,7 +142,7 @@ def traiter(message, numero):
         print(f"     [ERREUR] Insertion : {e}")
         return
 
-    # 2. Détection (les 10 règles + journalisation des alertes)
+    # 2. Détection (les 11 règles + journalisation des alertes)
     try:
         alertes = engine.detecter(tx["id"], journaliser=True)
     except Exception as e:
