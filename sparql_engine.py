@@ -7,6 +7,12 @@ Contient les 11 règles (R001 à R011) sous forme de fonctions Python.
 Chaque fonction envoie une requête SPARQL à Virtuoso et retourne
 la liste des détections (vide si la règle ne se déclenche pas).
 
+Corrections (v5) :
+  - Tous les seuils sont lus dans l'ontologie.
+  - R004 : filtrage temporel en Python (bif:dateadd non supporté).
+  - R011 : Haversine en Python (bif:sin/bif:cos échouent avec variables).
+  - inserer_transaction : coordonnées en xsd:double + champs enrichis.
+
 Usage :
     from sparql_engine import FraudEngine
     engine = FraudEngine()
@@ -14,8 +20,10 @@ Usage :
 """
 
 from SPARQLWrapper import SPARQLWrapper, JSON
-
 import os
+import math
+from datetime import datetime, timedelta
+
 
 class FraudEngine:
 
@@ -34,7 +42,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         self.sparql.setReturnFormat(JSON)
 
     # ------------------------------------------------------------------ #
-    # Méthode interne                                                    #
+    # Méthodes internes                                                  #
     # ------------------------------------------------------------------ #
 
     def _select(self, query):
@@ -45,8 +53,25 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
     def _val(self, row, key):
         return row[key]["value"] if key in row else None
 
+    def _uri(self, tx_id):
+        if tx_id.startswith("http://"):
+            return tx_id
+        return ("http://www.semanticweb.org/dell/ontologies/2026/7/"
+                f"Fraude-bancaires-corrigee#{tx_id}")
+
+    @staticmethod
+    def _parse_ts(s):
+        """Parse un timestamp ISO, gère le suffixe Z."""
+        if s is None:
+            return None
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        # Gérer les microsecondes sur 6 chiffres (Python accepte, mais
+        # certains formats Virtuoso sont exotiques)
+        return datetime.fromisoformat(s)
+
     # ------------------------------------------------------------------ #
-    # Les 10 règles existantes (R001 à R010) — inchangées                #
+    # R001 — Montant anormal                                             #
     # ------------------------------------------------------------------ #
 
     def r001_montant(self, tx):
@@ -61,9 +86,13 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         """)
         return [{"regle": "R001", "severite": "Critique",
                  "montant": self._val(r, "montant"),
-                 "seuil": self._val(r, "seuil"),
+                 "seuil":   self._val(r, "seuil"),
                  "detail": f"Montant {self._val(r,'montant')} > seuil {self._val(r,'seuil')}"}
                 for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # R002 — Pays inhabituel                                             #
+    # ------------------------------------------------------------------ #
 
     def r002_pays(self, tx):
         rows = self._select(f"""
@@ -79,112 +108,224 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             }}
         """)
         return [{"regle": "R002", "severite": "Elevee",
-                 "paysTx": self._val(r, "paysTx"),
+                 "paysTx":  self._val(r, "paysTx"),
                  "paysHab": self._val(r, "paysHab"),
                  "detail": f"Pays {self._val(r,'paysTx')} != habituel {self._val(r,'paysHab')}"}
                 for r in rows]
 
+    # ------------------------------------------------------------------ #
+    # R003 — Heure inhabituelle                                          #
+    # ------------------------------------------------------------------ #
+
     def r003_heure(self, tx):
         rows = self._select(f"""
-            SELECT ?heure WHERE {{
+            SELECT ?heure ?minH ?maxH WHERE {{
               GRAPH <{self.GRAPH}> {{
                 <{self._uri(tx)}> :transactionTimestamp ?ts .
                 BIND(HOURS(?ts) AS ?heure)
-                FILTER(?heure >= 23 || ?heure < 6)
+                ?r :ruleID "R003" ;
+                   :ruleThresholdMin ?minH ;
+                   :ruleThresholdMax ?maxH .
+                FILTER(?heure >= ?minH || ?heure < ?maxH)
               }}
             }}
         """)
         return [{"regle": "R003", "severite": "Elevee",
                  "heure": self._val(r, "heure"),
-                 "detail": f"Heure {self._val(r,'heure')}h (plage 23h-6h)"}
+                 "detail": (f"Heure {self._val(r,'heure')}h "
+                            f"(plage {self._val(r,'minH')}h-{self._val(r,'maxH')}h)")}
                 for r in rows]
 
+    # ------------------------------------------------------------------ #
+    # R004 — Fréquence anormale (CORRIGÉE v5)                            #
+    # Seuil : :ruleThreshold + :ruleWindowMinutes                        #
+    # Filtrage temporel en Python (bif:dateadd non supporté).            #
+    # ------------------------------------------------------------------ #
+
     def r004_frequence(self, tx):
-        rows = self._select(f"""
-            SELECT (COUNT(?autre) AS ?nb) WHERE {{
+        """
+        R004 : fréquence anormale — plus de N transactions sur la
+        même carte dans une fenêtre glissante.
+
+        SPARQL ne fait que récupérer la carte et les seuils ;
+        le filtrage temporel est fait en Python.
+        """
+        # 1. Récupérer la carte + les seuils
+        info = self._select(f"""
+            SELECT ?carte ?ts ?seuil ?fenetre WHERE {{
               GRAPH <{self.GRAPH}> {{
                 <{self._uri(tx)}> :usesCard ?carte ; :transactionTimestamp ?ts .
-                ?autre :usesCard ?carte ; :transactionTimestamp ?ts2 .
-                FILTER(?ts2 <= ?ts)
-                FILTER(?ts2 >= ?ts - "PT5M"^^xsd:duration)
+                ?r :ruleID "R004" ;
+                   :ruleThreshold ?seuil ;
+                   :ruleWindowMinutes ?fenetre .
               }}
             }}
         """)
-        if not rows:
+        if not info:
             return []
-        nb = int(rows[0]["nb"]["value"])
-        if nb <= 10:
+
+        carte   = self._val(info[0], "carte")
+        ts_cur  = self._parse_ts(self._val(info[0], "ts"))
+        seuil   = float(self._val(info[0], "seuil"))
+        fenetre = int(float(self._val(info[0], "fenetre")))
+
+        if ts_cur is None:
             return []
+        ts_min = ts_cur - timedelta(minutes=fenetre)
+
+        # 2. Récupérer toutes les transactions sur la même carte
+        rows = self._select(f"""
+            SELECT ?ts2 WHERE {{
+              GRAPH <{self.GRAPH}> {{
+                ?autre :usesCard <{carte}> ; :transactionTimestamp ?ts2 .
+              }}
+            }}
+        """)
+
+        # 3. Filtrer la fenêtre en Python
+        nb = 0
+        for r in rows:
+            ts2 = self._parse_ts(self._val(r, "ts2"))
+            if ts2 is None:
+                continue
+            if ts_min <= ts2 <= ts_cur:
+                nb += 1
+
+        if nb <= seuil:
+            return []
+
         return [{"regle": "R004", "severite": "Elevee",
-                 "nb": nb,
-                 "detail": f"{nb} transactions en 5 min (seuil 10)"}]
+                 "nb": nb, "seuil": seuil, "fenetre": fenetre,
+                 "detail": f"{nb} transactions en {fenetre} min (seuil {int(seuil)})"}]
+
+    # ------------------------------------------------------------------ #
+    # R005 — Cumul journalier                                            #
+    # ------------------------------------------------------------------ #
 
     def r005_cumul(self, tx):
         rows = self._select(f"""
-            SELECT (SUM(?m) AS ?cumul) WHERE {{
+            SELECT (SUM(?m) AS ?cumul) ?seuil WHERE {{
               GRAPH <{self.GRAPH}> {{
                 <{self._uri(tx)}> :hasSource ?compte ; :transactionTimestamp ?ts .
+                ?r :ruleID "R005" ; :ruleThreshold ?seuil .
                 ?autre :hasSource ?compte ; :transactionAmount ?m ; :transactionTimestamp ?ts2 .
                 FILTER(SUBSTR(STR(?ts2), 1, 10) = SUBSTR(STR(?ts), 1, 10))
                 FILTER(?ts2 <= ?ts)
               }}
             }}
+            GROUP BY ?seuil
         """)
-        if not rows:
-            return []
-        if "cumul" not in rows[0] or not rows[0]["cumul"]["value"]:
+        if not rows or "cumul" not in rows[0]:
             return []
         cumul = float(rows[0]["cumul"]["value"])
-        if cumul <= 10000:
+        seuil = float(self._val(rows[0], "seuil"))
+        if cumul <= seuil:
             return []
         return [{"regle": "R005", "severite": "Elevee",
-                 "cumul": cumul,
-                 "detail": f"Cumul journalier {cumul:.0f} > 10000"}]
+                 "cumul": cumul, "seuil": seuil,
+                 "detail": f"Cumul journalier {cumul:.0f} > {seuil:.0f}"}]
+
+    # ------------------------------------------------------------------ #
+    # R006 — Multi-pays (CORRIGÉE v5 : filtrage Python)                  #
+    # Seuil : :ruleThreshold + :ruleWindowMinutes                        #
+    # ------------------------------------------------------------------ #
 
     def r006_multipays(self, tx):
-        rows = self._select(f"""
-            SELECT (COUNT(DISTINCT ?pays) AS ?nb) WHERE {{
+        """
+        R006 : carte utilisée dans plusieurs pays sur une fenêtre.
+
+        SPARQL récupère la carte, le seuil, la fenêtre et toutes les
+        transactions ; le filtrage temporel est fait en Python.
+        """
+        # 1. Carte + seuils
+        info = self._select(f"""
+            SELECT ?carte ?ts ?seuil ?fenetre WHERE {{
               GRAPH <{self.GRAPH}> {{
                 <{self._uri(tx)}> :usesCard ?carte ; :transactionTimestamp ?ts .
-                ?autre :usesCard ?carte ; :hasLocation ?loc ; :transactionTimestamp ?ts2 .
-                ?loc :locationCountry ?pays .
-                FILTER(?ts2 <= ?ts)
-                FILTER(bif:datediff('minute', ?ts2, ?ts) <= 60)
+                ?r :ruleID "R006" ;
+                   :ruleThreshold ?seuil ;
+                   :ruleWindowMinutes ?fenetre .
               }}
             }}
         """)
-        if not rows:
+        if not info:
             return []
-        nb = int(rows[0]["nb"]["value"])
-        if nb <= 2:
+
+        carte   = self._val(info[0], "carte")
+        ts_cur  = self._parse_ts(self._val(info[0], "ts"))
+        seuil   = float(self._val(info[0], "seuil"))
+        fenetre = int(float(self._val(info[0], "fenetre")))
+
+        if ts_cur is None:
             return []
+        ts_min = ts_cur - timedelta(minutes=fenetre)
+
+        # 2. Transactions sur la même carte + leur pays
+        rows = self._select(f"""
+            SELECT ?pays ?ts2 WHERE {{
+              GRAPH <{self.GRAPH}> {{
+                ?autre :usesCard <{carte}> ;
+                       :hasLocation ?loc ;
+                       :transactionTimestamp ?ts2 .
+                ?loc :locationCountry ?pays .
+              }}
+            }}
+        """)
+
+        # 3. Filtrer et compter les pays distincts
+        pays_distincts = set()
+        for r in rows:
+            ts2 = self._parse_ts(self._val(r, "ts2"))
+            if ts2 is None:
+                continue
+            if ts_min <= ts2 <= ts_cur:
+                pays_distincts.add(self._val(r, "pays"))
+
+        nb = len(pays_distincts)
+        if nb <= seuil:
+            return []
+
         return [{"regle": "R006", "severite": "Critique",
-                 "nb_pays": nb,
-                 "detail": f"{nb} pays en 1h (seuil 2)"}]
+                 "nb_pays": nb, "seuil": seuil, "fenetre": fenetre,
+                 "detail": f"{nb} pays en {fenetre} min (seuil {int(seuil)})"}]
+
+    # ------------------------------------------------------------------ #
+    # R007 — Historique incohérent                                       #
+    # ------------------------------------------------------------------ #
 
     def r007_historique(self, tx):
         rows = self._select(f"""
-            SELECT ?montant ?moyenne ?nb WHERE {{
+            SELECT ?montant ?moyenne ?nb ?mult ?minN WHERE {{
               GRAPH <{self.GRAPH}> {{
                 <{self._uri(tx)}> :transactionAmount ?montant ; :hasSource ?compte .
+                ?r :ruleID "R007" ;
+                   :ruleMultiplier ?mult ;
+                   :ruleMinSampleSize ?minN .
                 {{
                   SELECT ?compte (AVG(?m) AS ?moyenne) (COUNT(?t) AS ?nb) WHERE {{
                     GRAPH <{self.GRAPH}> {{
                       ?t :hasSource ?compte ; :transactionAmount ?m .
+                      FILTER(?t != <{self._uri(tx)}>)
                     }}
                   }}
                   GROUP BY ?compte
                 }}
-                FILTER(?nb >= 3 && ?montant > 3 * ?moyenne)
+                FILTER(?nb >= ?minN && ?montant > ?mult * ?moyenne)
               }}
             }}
         """)
         return [{"regle": "R007", "severite": "Elevee",
                  "montant": self._val(r, "montant"),
                  "moyenne": self._val(r, "moyenne"),
-                 "nb": self._val(r, "nb"),
-                 "detail": f"{self._val(r,'montant')} > 3x moyenne ({self._val(r,'moyenne')})"}
+                 "nb":      self._val(r, "nb"),
+                 "mult":    self._val(r, "mult"),
+                 "detail": (f"{self._val(r,'montant')} > "
+                            f"{self._val(r,'mult')}x moyenne ({self._val(r,'moyenne')})")}
                 for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # R008 — Solde insuffisant                                           #
+    # ------------------------------------------------------------------ #
 
     def r008_solde(self, tx):
         rows = self._select(f"""
@@ -201,9 +342,13 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         """)
         return [{"regle": "R008", "severite": "Elevee",
                  "montant": self._val(r, "montant"),
-                 "solde": self._val(r, "solde"),
+                 "solde":   self._val(r, "solde"),
                  "detail": f"Retrait {self._val(r,'montant')} > solde {self._val(r,'solde')}"}
                 for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # R009 — Plafond dépassé                                             #
+    # ------------------------------------------------------------------ #
 
     def r009_plafond(self, tx):
         rows = self._select(f"""
@@ -218,10 +363,14 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             }}
         """)
         return [{"regle": "R009", "severite": "Elevee",
-                 "montant": self._val(r, "montant"),
-                 "plafond": self._val(r, "plafond"),
+                 "montant":  self._val(r, "montant"),
+                 "plafond":  self._val(r, "plafond"),
                  "detail": f"Montant {self._val(r,'montant')} > plafond {self._val(r,'plafond')}"}
                 for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # R010 — Localisation incohérente                                    #
+    # ------------------------------------------------------------------ #
 
     def r010_localisation(self, tx):
         rows = self._select(f"""
@@ -237,27 +386,32 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             }}
         """)
         return [{"regle": "R010", "severite": "Elevee",
-                 "villeTx": self._val(r, "villeTx"),
-                 "paysTx": self._val(r, "paysTx"),
+                 "villeTx":  self._val(r, "villeTx"),
+                 "paysTx":   self._val(r, "paysTx"),
                  "villeCur": self._val(r, "villeCur"),
-                 "paysCur": self._val(r, "paysCur"),
-                 "detail": f"Tx {self._val(r,'villeTx')}/{self._val(r,'paysTx')} != actuel {self._val(r,'villeCur')}/{self._val(r,'paysCur')}"}
+                 "paysCur":  self._val(r, "paysCur"),
+                 "detail": (f"Tx {self._val(r,'villeTx')}/{self._val(r,'paysTx')} "
+                            f"!= actuel {self._val(r,'villeCur')}/{self._val(r,'paysCur')}")}
                 for r in rows]
 
     # ------------------------------------------------------------------ #
-    # R011 — VOYAGE IMPOSSIBLE (nouvelle règle)                          #
+    # R011 — Voyage impossible (CORRIGÉE v5 : Haversine Python)          #
     # ------------------------------------------------------------------ #
 
     def r011_voyage_impossible(self, tx):
         """
-        R011 : deux transactions successives sur la même carte donnent
-        une vitesse implicite > 900 km/h (seuil lu dans l'ontologie).
-        Utilise la formule de Haversine en SPARQL (fonctions Virtuoso).
+        R011 : voyage impossible — deux transactions successives sur la
+        même carte donnent une vitesse implicite > seuil (lu dans
+        l'ontologie).
+
+        SPARQL sélectionne les paires candidates ; la distance
+        Haversine est calculée en Python (bif:sin/bif:cos échouent
+        silencieusement dans Virtuoso).
         """
         rows = self._select(f"""
-            SELECT ?txn1 ?ville1 ?pays1 ?ville2 ?pays2
-                   ?dist ?deltaH ?vitesse ?seuil WHERE {{
-
+            SELECT ?txn1 ?ville1 ?pays1 ?lat1 ?lon1
+                   ?ville2 ?pays2 ?lat2 ?lon2
+                   ?deltaH ?seuil WHERE {{
               GRAPH <{self.GRAPH}> {{
 
                 # Transaction courante (txn2)
@@ -269,7 +423,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
                       :locationCity      ?ville2 ;
                       :locationCountry   ?pays2 .
 
-                # Transaction précédente sur la même carte (txn1)
+                # Transaction précédente (txn1)
                 ?txn1 :usesCard ?carte ;
                       :transactionTimestamp ?ts1 ;
                       :hasLocation ?loc1 .
@@ -280,66 +434,71 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
 
                 FILTER(?ts1 < ?ts2)
 
-                # Empêche de comparer à une transaction plus récente
-                # que txn1 mais plus ancienne que txn2 (garde la plus récente)
                 FILTER NOT EXISTS {{
                   ?txnX :usesCard ?carte ; :transactionTimestamp ?tsX .
-                  FILTER(?ts1 < ?tsX && ?tsX < ?ts2)
+                  FILTER(?tsX > ?ts1 && ?tsX < ?ts2)
                 }}
 
-                # Fenêtre max : 6 heures
                 BIND(bif:datediff('minute', ?ts1, ?ts2) / 60.0 AS ?deltaH)
                 FILTER(?deltaH > 0 && ?deltaH <= 6)
 
-                # --- Haversine (Virtuoso : bif:pi(), bif:sin, bif:cos, bif:asin, bif:sqrt) ---
-                BIND(?lat1 * bif:pi() / 180.0 AS ?phi1)
-                BIND(?lat2 * bif:pi() / 180.0 AS ?phi2)
-                BIND((?lat2 - ?lat1) * bif:pi() / 180.0 AS ?dphi)
-                BIND((?lon2 - ?lon1) * bif:pi() / 180.0 AS ?dlambda)
-
-                BIND(
-                  bif:sin(?dphi/2) * bif:sin(?dphi/2) +
-                  bif:cos(?phi1) * bif:cos(?phi2) *
-                  bif:sin(?dlambda/2) * bif:sin(?dlambda/2)
-                  AS ?a
-                )
-                BIND(2 * bif:asin(bif:sqrt(?a)) AS ?c)
-                BIND(6371.0 * ?c AS ?dist)
-
-                # Seuil lu depuis l'ontologie (regle_R011 :ruleThreshold 900.0)
                 ?r :ruleID "R011" ; :ruleThreshold ?seuil .
-
-                BIND(?dist / ?deltaH AS ?vitesse)
-                FILTER(?vitesse > ?seuil)
               }}
             }}
         """)
 
         resultats = []
         for r in rows:
-            v1   = self._val(r, "ville1")
-            p1   = self._val(r, "pays1")
-            v2   = self._val(r, "ville2")
-            p2   = self._val(r, "pays2")
-            dist = float(self._val(r, "dist"))
-            dh   = float(self._val(r, "deltaH"))
-            vit  = float(self._val(r, "vitesse"))
-            seuil = float(self._val(r, "seuil"))
+            try:
+                lat1  = float(self._val(r, "lat1"))
+                lon1  = float(self._val(r, "lon1"))
+                lat2  = float(self._val(r, "lat2"))
+                lon2  = float(self._val(r, "lon2"))
+                dh    = float(self._val(r, "deltaH"))
+                seuil = float(self._val(r, "seuil"))
+            except (TypeError, ValueError):
+                continue
+
+            # --- Haversine en Python ---
+            R = 6371.0
+            phi1 = math.radians(lat1)
+            phi2 = math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlmb = math.radians(lon2 - lon1)
+
+            a = (math.sin(dphi / 2) ** 2
+                 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2)
+            a = max(0.0, min(1.0, a))
+            c = 2 * math.asin(math.sqrt(a))
+            dist = R * c
+
+            if dh <= 0:
+                continue
+            vitesse = dist / dh
+            if vitesse <= seuil:
+                continue
+
+            v1 = self._val(r, "ville1")
+            p1 = self._val(r, "pays1")
+            v2 = self._val(r, "ville2")
+            p2 = self._val(r, "pays2")
             txn1 = self._val(r, "txn1").split("#")[-1]
+
             resultats.append({
-                "regle":    "R011",
-                "severite": "Critique",
+                "regle":          "R011",
+                "severite":       "Critique",
                 "txn_precedente": txn1,
-                "de":  f"{v1}, {p1}",
-                "vers": f"{v2}, {p2}",
-                "distance_km": round(dist, 1),
-                "delta_h":     round(dh, 3),
-                "vitesse_kmh": round(vit, 1),
-                "seuil":       seuil,
+                "de":             f"{v1}, {p1}",
+                "vers":           f"{v2}, {p2}",
+                "distance_km":    round(dist, 1),
+                "delta_h":        round(dh, 3),
+                "vitesse_kmh":    round(vitesse, 1),
+                "seuil":          seuil,
                 "detail": (f"Voyage impossible : {v1} ({p1}) → {v2} ({p2}) "
-                           f"en {dh:.2f} h, {dist:.0f} km → {vit:.0f} km/h "
+                           f"en {dh:.2f} h, {dist:.0f} km → {vitesse:.0f} km/h "
                            f"(seuil {seuil:.0f} km/h)")
             })
+
         return resultats
 
     # ------------------------------------------------------------------ #
@@ -357,7 +516,7 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             data=data,
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/sparql-results+json",
+                "Accept":     "application/sparql-results+json",
             },
             method="POST",
         )
@@ -366,12 +525,8 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
 
     def inserer_transaction(self, tx):
         """
-        Insère une nouvelle transaction + sa localisation (avec coordonnées)
-        dans Virtuoso.
-
-        Args:
-            tx (dict) : id, montant, devise, type, pays, ville,
-                        latitude, longitude, date, compte, carte (optionnel).
+        Insère une transaction + sa localisation dans Virtuoso.
+        Coordonnées en xsd:double pour compatibilité Haversine.
         """
         import uuid
 
@@ -386,39 +541,41 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
         carte   = tx.get("carte")
         lat     = tx.get("latitude")
         lng     = tx.get("longitude")
+        merchant = tx.get("commercant") or tx.get("merchant")
+        status   = tx.get("statut") or tx.get("status", "Validee")
+        ip       = tx.get("ip")
+        device   = tx.get("device")
 
         loc_id = f"loc_{uuid.uuid4().hex[:8]}"
 
-        # Localisation : on ajoute lat/lng seulement s'ils sont fournis
-        loc_triples = [
-            f":{loc_id} a :Localisation ;",
-            f'  :locationCountry "{pays}" ;',
-            f'  :locationCity "{ville}"',
-        ]
-        if lat is not None and lng is not None:
-            loc_triples[-1] += " ;"
-            loc_triples.append(f'  :locationLatitude  {float(lat)} ;')
-            loc_triples.append(f'  :locationLongitude {float(lng)} .')
-        else:
-            loc_triples[-1] += " ."
-
-        triples = [
-            f":{tx_id} a :Transaction ;",
-            f'  :transactionID "{tx_id}" ;',
-            f'  :transactionAmount {montant} ;',
-            f'  :transactionCurrency "{devise}" ;',
-            f'  :transactionType "{type_tx}" ;',
-            f'  :transactionTimestamp "{date}"^^xsd:dateTime ;',
-            f"  :hasLocation :{loc_id} .",
-        ] + loc_triples
-
+        triples = []
+        triples.append(f":{tx_id} a :Transaction .")
+        triples.append(f':{tx_id} :transactionID "{tx_id}" .')
+        triples.append(f':{tx_id} :transactionAmount {montant} .')
+        triples.append(f':{tx_id} :transactionCurrency "{devise}" .')
+        triples.append(f':{tx_id} :transactionType "{type_tx}" .')
+        triples.append(f':{tx_id} :transactionTimestamp "{date}"^^xsd:dateTime .')
+        triples.append(f':{tx_id} :transactionStatus "{status}" .')
+        triples.append(f':{tx_id} :hasLocation :{loc_id} .')
+        if merchant:
+            triples.append(f':{tx_id} :transactionMerchant "{merchant}" .')
         if compte:
-            triples.append(f":{tx_id} :hasSource :{compte} .")
+            triples.append(f':{tx_id} :hasSource :{compte} .')
         if carte:
-            triples.append(f":{tx_id} :usesCard :{carte} .")
+            triples.append(f':{tx_id} :usesCard :{carte} .')
+
+        triples.append(f":{loc_id} a :Localisation .")
+        triples.append(f':{loc_id} :locationCountry "{pays}" .')
+        triples.append(f':{loc_id} :locationCity "{ville}" .')
+        if lat is not None and lng is not None:
+            triples.append(f':{loc_id} :locationLatitude "{float(lat)}"^^xsd:double .')
+            triples.append(f':{loc_id} :locationLongitude "{float(lng)}"^^xsd:double .')
+        if ip:
+            triples.append(f':{loc_id} :locationIP "{ip}" .')
+        if device:
+            triples.append(f':{loc_id} :locationDevice "{device}" .')
 
         body = "\n".join(triples)
-
         query = f"""
             INSERT DATA {{
               GRAPH <{self.GRAPH}> {{
@@ -432,7 +589,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
     def inserer_alerte(self, tx_id, alerte):
         """Insère une alerte typée OWL + sa preuve dans Virtuoso."""
         import uuid
-        from datetime import datetime
 
         alerte_uri = f":alerte_{uuid.uuid4().hex[:8]}"
         preuve_uri = f":preuve_{uuid.uuid4().hex[:8]}"
@@ -453,8 +609,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
             "R011": "AlerteFraudeVoyageImpossible",
         }
         classe = classes.get(alerte["regle"], "AlerteFraude")
-
-        # Échappe les guillemets dans le détail
         detail = alerte["detail"].replace('"', '\\"')
 
         query = f"""
@@ -488,11 +642,6 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
     # Orchestration                                                      #
     # ------------------------------------------------------------------ #
 
-    def _uri(self, tx_id):
-        if tx_id.startswith("http://"):
-            return tx_id
-        return f"http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#{tx_id}"
-
     def detecter(self, tx_id, journaliser=True):
         """Exécute les 11 règles et insère les alertes dans Virtuoso."""
         regles = [
@@ -520,25 +669,8 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
 
 if __name__ == "__main__":
     engine = FraudEngine()
-
-    print("=== Test : insertion d'une transaction avec coordonnées ===")
-    nouvelle = {
-        "montant": 7500.0,
-        "devise": "MAD",
-        "type": "Paiement en ligne",
-        "pays": "Maroc",
-        "ville": "Casablanca",
-        "latitude": 33.5731,
-        "longitude": -7.5898,
-        "date": "2026-09-11T03:15:00",
-        "compte": "compte_809888dd",
-        "carte": "carte_test_809888dd",
-    }
-    tx_id = engine.inserer_transaction(nouvelle)
-    print(f"  → Transaction insérée : {tx_id}\n")
-
-    print(f"=== Détection sur {tx_id} ===")
-    alertes = engine.detecter(tx_id, journaliser=False)
-    for a in alertes:
-        print(f"  [{a['regle']}] {a['detail']}")
-    print(f"  → {len(alertes)} alerte(s)")
+    print("FraudEngine OK — méthodes disponibles :")
+    for m in ("inserer_transaction", "inserer_alerte", "detecter",
+              "r001_montant", "r004_frequence", "r006_multipays",
+              "r011_voyage_impossible"):
+        print(f"  {'OK' if hasattr(engine, m) else 'MANQUANT'}  {m}")

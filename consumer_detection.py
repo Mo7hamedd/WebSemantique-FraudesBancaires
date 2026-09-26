@@ -5,9 +5,13 @@ Consumer Kafka qui détecte la fraude en temps réel.
 
 Pipeline :
     1. Lit un message JSON-LD sur le topic "transactions"
-    2. Insère la transaction dans Virtuoso (avec lat/lng)
+    2. Insère la transaction dans Virtuoso (avec lat/lng + champs enrichis)
     3. Exécute les 11 règles SPARQL
     4. Publie les alertes sur le topic "alertes"
+
+Corrections (v3) :
+  - Extraction des champs optionnels (commerçant, statut, IP, device)
+    présents dans le JSON-LD produit par api_producer.py.
 
 Usage :
     python consumer_detection.py
@@ -24,11 +28,11 @@ from kafka import KafkaConsumer, KafkaProducer
 from sparql_engine import FraudEngine
 
 import os
-KAFKA_SERVER   = os.environ.get("KAFKA_SERVER", "localhost:9092")
-TOPIC_IN       = "transactions"
-TOPIC_OUT      = "alertes"
-GROUP_ID       = "detection-groupe"
-NS             = "http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#"
+KAFKA_SERVER = os.environ.get("KAFKA_SERVER", "localhost:9092")
+TOPIC_IN     = "transactions"
+TOPIC_OUT    = "alertes"
+GROUP_ID     = "detection-groupe"
+NS           = "http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#"
 
 
 print("[INFO] Initialisation du moteur SPARQL...")
@@ -53,23 +57,35 @@ print(f"[OK] Consumer connecté sur '{TOPIC_IN}'")
 print(f"[OK] Producer prêt pour '{TOPIC_OUT}'")
 
 
-# ---------- Transformation JSON-LD → dict simple ----------
+# ---------- Helpers ----------
+def _unwrap(v):
+    """Défait un objet JSON-LD {"@value": x, "@type": y} en x."""
+    if isinstance(v, dict) and "@value" in v:
+        return v["@value"]
+    return v
+
+
 def extraire_transaction(message):
     """Transforme un message JSON-LD en dict exploitable par sparql_engine."""
     loc = message["hasLocation"]
+
     return {
         "id":      message["@id"],
-        "montant": message["transactionAmount"]["@value"],
+        "montant": _unwrap(message["transactionAmount"]),
         "devise":  message.get("transactionCurrency", "MAD"),
         "type":    message.get("transactionType", "Paiement"),
-        "date":    message["transactionTimestamp"]["@value"],
+        "date":    _unwrap(message["transactionTimestamp"]),
         "pays":    loc["locationCountry"],
         "ville":   loc["locationCity"],
-        # Coordonnées (peuvent être absentes sur d'anciens messages)
-        "latitude":  loc.get("locationLatitude",  {}).get("@value") if isinstance(loc.get("locationLatitude"), dict)  else loc.get("locationLatitude"),
-        "longitude": loc.get("locationLongitude", {}).get("@value") if isinstance(loc.get("locationLongitude"), dict) else loc.get("locationLongitude"),
+        "latitude":  _unwrap(loc.get("locationLatitude")),
+        "longitude": _unwrap(loc.get("locationLongitude")),
         "compte":  message["hasSource"]["@id"],
-        "carte":   message.get("usesCard", {}).get("@id") if message.get("usesCard") else None,
+        "carte":   message["usesCard"]["@id"] if message.get("usesCard") else None,
+        # Champs optionnels
+        "commercant": message.get("transactionMerchant"),
+        "statut":     message.get("transactionStatus", "Validee"),
+        "ip":         loc.get("locationIP"),
+        "device":     loc.get("locationDevice"),
     }
 
 
@@ -133,6 +149,8 @@ def traiter(message, numero):
     print(f"     Lieu    : {tx['ville']}, {tx['pays']} "
           f"(lat={tx['latitude']}, lng={tx['longitude']})")
     print(f"     Compte  : {tx['compte']} | Carte : {tx['carte'] or 'aucune'}")
+    if tx.get("commercant"):
+        print(f"     Marchand: {tx['commercant']}")
 
     # 1. Insertion dans Virtuoso
     try:
@@ -142,7 +160,7 @@ def traiter(message, numero):
         print(f"     [ERREUR] Insertion : {e}")
         return
 
-    # 2. Détection (les 11 règles + journalisation des alertes)
+    # 2. Détection
     try:
         alertes = engine.detecter(tx["id"], journaliser=True)
     except Exception as e:

@@ -51,7 +51,7 @@ def consommer_alertes():
         TOPIC,
         bootstrap_servers=KAFKA_SERVER,
         group_id=GROUP_ID,
-        auto_offset_reset="latest",
+        auto_offset_reset="earliest",
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
     )
     print(f"[OK] Consumer dashboard connecté sur '{TOPIC}'")

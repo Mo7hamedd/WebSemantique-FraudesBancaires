@@ -4,6 +4,12 @@ api_producer.py
 API REST Flask qui reçoit des transactions via HTTP POST
 et les publie sur Kafka (topic "transactions") au format JSON-LD.
 
+Corrections (v3) :
+  - Coordonnées en xsd:double (au lieu de xsd:float) pour que la
+    fonction Haversine de Virtuoso (bif:sin/bif:cos) fonctionne.
+  - Prise en charge des champs optionnels : commerçant, statut,
+    IP, device (transmis dans le JSON-LD).
+
 Usage :
     python api_producer.py
 
@@ -69,8 +75,7 @@ def _construire_jsonld(data):
     tx_id  = f"txn_{uuid.uuid4().hex[:8]}"
     loc_id = f"loc_{uuid.uuid4().hex[:8]}"
 
-    # Permet de simuler un timestamp pour tester R011 (voyage impossible).
-    # Si absent, on utilise l'heure courante.
+    # Timestamp : permet de simuler pour tester R011
     if data.get("timestamp"):
         ts = data["timestamp"]
     else:
@@ -89,6 +94,7 @@ def _construire_jsonld(data):
         "transactionCurrency": data.get("devise", "MAD"),
         "transactionType":    data.get("type", "Paiement"),
         "transactionTimestamp": {"@value": ts, "@type": "xsd:dateTime"},
+        "transactionStatus":  data.get("statut", "Validee"),
 
         "hasSource":  {"@id": data["compte"]},
 
@@ -97,8 +103,9 @@ def _construire_jsonld(data):
             "@id": loc_id,
             "locationCountry":   data["pays"],
             "locationCity":      data["ville"],
-            "locationLatitude":  {"@value": float(data["latitude"]),  "@type": "xsd:float"},
-            "locationLongitude": {"@value": float(data["longitude"]), "@type": "xsd:float"},
+            # xsd:double (et non xsd:float) pour compatibilité Haversine
+            "locationLatitude":  {"@value": float(data["latitude"]),  "@type": "xsd:double"},
+            "locationLongitude": {"@value": float(data["longitude"]), "@type": "xsd:double"},
         },
     }
 
@@ -107,6 +114,12 @@ def _construire_jsonld(data):
 
     if data.get("commercant"):
         message["transactionMerchant"] = data["commercant"]
+
+    # Champs optionnels pour localisation (IP / device)
+    if data.get("ip"):
+        message["hasLocation"]["locationIP"] = data["ip"]
+    if data.get("device"):
+        message["hasLocation"]["locationDevice"] = data["device"]
 
     return message
 

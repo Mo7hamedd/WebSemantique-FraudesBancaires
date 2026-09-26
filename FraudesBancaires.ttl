@@ -406,6 +406,38 @@
 :evidenceTimestamp a owl:DatatypeProperty ;
     rdfs:domain :Preuve ; rdfs:range xsd:dateTime .
 
+
+
+:ruleThreshold a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:float ;
+    rdfs:label "seuil principal" ;
+    rdfs:comment "Valeur numérique principale lue par le moteur SPARQL." .
+
+:ruleThresholdMin a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:float ;
+    rdfs:label "borne inférieure" ;
+    rdfs:comment "Borne inférieure d'une plage (ex. heure de début)." .
+
+:ruleThresholdMax a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:float ;
+    rdfs:label "borne supérieure" ;
+    rdfs:comment "Borne supérieure d'une plage (ex. heure de fin)." .
+
+:ruleWindowMinutes a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:integer ;
+    rdfs:label "fenêtre temporelle (minutes)" ;
+    rdfs:comment "Fenêtre glissante sur laquelle la règle s'applique." .
+
+:ruleMultiplier a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:float ;
+    rdfs:label "multiplicateur" ;
+    rdfs:comment "Facteur multiplicatif (ex. 3x la moyenne)." .
+
+:ruleMinSampleSize a owl:DatatypeProperty ;
+    rdfs:domain :Regle ; rdfs:range xsd:integer ;
+    rdfs:label "taille minimale d'échantillon" ;
+    rdfs:comment "Nombre minimum d'observations pour appliquer la règle." .
+
 #################################################################
 #    RESTRICTIONS OWL
 #################################################################
@@ -462,36 +494,44 @@
     :ruleDescription "Transaction hors pays habituel" ;
     :ruleStatus "Actif" .
 
+
 :regle_R003 a :Regle ;
     :ruleID "R003" ;
     :ruleName "Heure inhabituelle" ;
-    :ruleDescription "Transaction en dehors des heures normales (23h-6h)" ;
+    :ruleDescription "Transaction en dehors des heures normales" ;
+    :ruleThresholdMin "23"^^xsd:float ;
+    :ruleThresholdMax "6"^^xsd:float ;
     :ruleStatus "Actif" .
 
 :regle_R004 a :Regle ;
     :ruleID "R004" ;
     :ruleName "Fréquence anormale" ;
-    :ruleDescription "Trop de transactions sur courte période (> 10 en 5 min)" ;
+    :ruleDescription "Trop de transactions sur courte période" ;
     :ruleThreshold "10"^^xsd:float ;
+    :ruleWindowMinutes "5"^^xsd:integer ;
     :ruleStatus "Actif" .
 
 :regle_R005 a :Regle ;
     :ruleID "R005" ;
     :ruleName "Cumul journalier" ;
-    :ruleDescription "Cumul des transactions dépasse le seuil (> 10000 MAD/jour)" ;
+    :ruleDescription "Cumul journalier dépassé" ;
     :ruleThreshold "10000.0"^^xsd:float ;
     :ruleStatus "Actif" .
 
 :regle_R006 a :Regle ;
     :ruleID "R006" ;
     :ruleName "Carte multi-pays" ;
-    :ruleDescription "Carte utilisée dans plusieurs pays (> 2 pays en 1h)" ;
+    :ruleDescription "Carte utilisée dans plusieurs pays" ;
+    :ruleThreshold "2"^^xsd:float ;
+    :ruleWindowMinutes "60"^^xsd:integer ;
     :ruleStatus "Actif" .
 
 :regle_R007 a :Regle ;
     :ruleID "R007" ;
     :ruleName "Historique incohérent" ;
-    :ruleDescription "Montant > 3x moyenne historique du client" ;
+    :ruleDescription "Montant anormal par rapport à l'historique" ;
+    :ruleMultiplier "3"^^xsd:float ;
+    :ruleMinSampleSize "3"^^xsd:integer ;
     :ruleStatus "Actif" .
 
 :regle_R008 a :Regle ;
@@ -606,3 +646,8 @@
     :evidenceTimestamp "2026-08-31T14:05:06"^^xsd:dateTime ;
     :hasViolatedRule :regle_R001 ;
     :concernsTransaction :txn_98e8caca .
+:ruleThresholdMin  a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
+:ruleThresholdMax  a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
+:ruleWindowMinutes a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:integer .
+:ruleMultiplier    a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
+:ruleMinSampleSize a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:integer .
