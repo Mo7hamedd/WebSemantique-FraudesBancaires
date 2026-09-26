@@ -1,653 +1,925 @@
 @prefix : <http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@base <http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#> .
 
-<http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee>
-    a owl:Ontology ;
-    rdfs:label "Ontologie de Détection de Fraude Bancaire" ;
-    rdfs:comment "Version 2.0 - Septembre 2026 - Corrigée (conformité OWL 2 DL)" .
-
-#################################################################
-#    CLASSES
-#################################################################
-
-:Client a owl:Class ;
-    rdfs:label "Client" ;
-    rdfs:comment "Personne physique ou morale détenant des comptes bancaires." .
-
-:CompteBancaire a owl:Class ;
-    rdfs:label "Compte Bancaire" ;
-    rdfs:comment "Compte bancaire d'un client." .
-
-:CarteBancaire a owl:Class ;
-    rdfs:label "Carte Bancaire" ;
-    rdfs:comment "Carte bancaire liée à un compte." .
-
-:Transaction a owl:Class ;
-    rdfs:label "Transaction" ;
-    rdfs:comment "Opération bancaire." .
-
-:Localisation a owl:Class ;
-    rdfs:label "Localisation" ;
-    rdfs:comment "Lieu géographique." .
-
-:Regle a owl:Class ;
-    rdfs:label "Règle" ;
-    rdfs:comment "Règle de détection de fraude." .
-
-:Preuve a owl:Class ;
-    rdfs:label "Preuve" ;
-    rdfs:comment "Élément de preuve justifiant une alerte de fraude (déclaration explicite - correction OWL 2 DL)." .
-
-
+<http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee> rdf:type owl:Ontology .
 
 #################################################################
-#    CLASSES : AlerteFraude et sous-classes (une par règle)
+#    Object Properties
 #################################################################
 
-:AlerteFraude a owl:Class ;
-    rdfs:label "Alerte de Fraude" ;
-    rdfs:comment "Alerte générée lors de la détection d'une fraude." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#appliedTo
+:appliedTo rdf:type owl:ObjectProperty ;
+           owl:inverseOf :triggersRule ;
+           rdfs:domain :Regle ;
+           rdfs:range :AlerteFraude .
 
-:AlerteFraudeMontant a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Montant" ;
-    rdfs:comment "Montant anormal dépassant le seuil critique (R001)." .
 
-:AlerteFraudePays a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Pays" ;
-    rdfs:comment "Transaction hors pays habituel (R002)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#belongsTo
+:belongsTo rdf:type owl:ObjectProperty ;
+           owl:inverseOf :hasAccount ;
+           rdfs:domain :CompteBancaire ;
+           rdfs:range :Client .
 
-:AlerteFraudeHeure a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Heure" ;
-    rdfs:comment "Transaction hors heures habituelles, 23h-6h (R003)." .
 
-:AlerteFraudeFrequence a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Fréquence" ;
-    rdfs:comment "Fréquence anormale de transactions, >10 en 5 min (R004)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#concernsAccount
+:concernsAccount rdf:type owl:ObjectProperty ;
+                 rdfs:domain :AlerteFraude ;
+                 rdfs:range :CompteBancaire .
 
-:AlerteFraudeCumul a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Cumul" ;
-    rdfs:comment "Cumul journalier dépassé, >10000 MAD/jour (R005)." .
 
-:AlerteFraudeMultiPays a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Multi-Pays" ;
-    rdfs:comment "Carte utilisée dans plusieurs pays, >2 pays en 1h (R006)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#concernsCard
+:concernsCard rdf:type owl:ObjectProperty ;
+              rdfs:domain :AlerteFraude ;
+              rdfs:range :CarteBancaire .
 
-:AlerteFraudeHistorique a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Historique" ;
-    rdfs:comment "Montant supérieur à 3x la moyenne historique du client (R007)." .
 
-:AlerteFraudeSolde a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Solde" ;
-    rdfs:comment "Tentative de retrait supérieure au solde disponible (R008)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#concernsClient
+:concernsClient rdf:type owl:ObjectProperty ;
+                rdfs:domain :AlerteFraude ;
+                rdfs:range :Client .
 
-:AlerteFraudePlafond a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Plafond" ;
-    rdfs:comment "Transaction supérieure au plafond de la carte (R009)." .
 
-:AlerteFraudeLocalisation a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Localisation" ;
-    rdfs:comment "Transaction incohérente avec la localisation actuelle du client (R010)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#concernsLocation
+:concernsLocation rdf:type owl:ObjectProperty ;
+                  rdfs:domain :AlerteFraude ;
+                  rdfs:range :Localisation .
 
-:AlerteFraudeVoyageImpossible a owl:Class ;
-    rdfs:subClassOf :AlerteFraude ;
-    rdfs:label "Alerte Fraude Voyage Impossible" ;
-    rdfs:comment "Transaction avec une vitesse de déplacement physiquement impossible (R011)." .
-# Disjointness : une alerte ne peut appartenir qu'à un seul type à la fois
-# CORRECTION : remplacement des 45 déclarations owl:disjointWith par paires
-# par un unique bloc owl:AllDisjointClasses (recommandation OWL 2)
-[] a owl:AllDisjointClasses ;
-    owl:members ( :AlerteFraudeMontant
-                  :AlerteFraudePays
-                  :AlerteFraudeHeure
-                  :AlerteFraudeFrequence
-                  :AlerteFraudeCumul
-                  :AlerteFraudeMultiPays
-                  :AlerteFraudeHistorique
-                  :AlerteFraudeSolde
-                  :AlerteFraudePlafond
-                  :AlerteFraudeLocalisation
-                  :AlerteFraudeVoyageImpossible  ) .
 
-#################################################################
-#    PROPRIÉTÉS D'OBJET
-#################################################################
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#concernsTransaction
+:concernsTransaction rdf:type owl:ObjectProperty ;
+                     owl:inverseOf :hasEvidence ;
+                     rdfs:domain :Preuve ;
+                     rdfs:range :Transaction .
 
-:hasAccount a owl:ObjectProperty ;
-    rdfs:domain :Client ;
-    rdfs:range :CompteBancaire ;
-    owl:inverseOf :belongsTo .
 
-:belongsTo a owl:ObjectProperty ;
-    rdfs:domain :CompteBancaire ;
-    rdfs:range :Client .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#destinationOf
+:destinationOf rdf:type owl:ObjectProperty ;
+               owl:inverseOf :hasDestination ;
+               rdfs:domain :CompteBancaire ;
+               rdfs:range :Transaction .
 
-:hasCard a owl:ObjectProperty ;
-    rdfs:domain :CompteBancaire ;
-    rdfs:range :CarteBancaire ;
-    owl:inverseOf :linkedTo .
 
-:linkedTo a owl:ObjectProperty ;
-    rdfs:domain :CarteBancaire ;
-    rdfs:range :CompteBancaire .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#generatesAlert
+:generatesAlert rdf:type owl:ObjectProperty ;
+                owl:inverseOf :triggeredBy ;
+                rdfs:domain :Transaction ;
+                rdfs:range :AlerteFraude .
 
-:sourceOf a owl:ObjectProperty ;
-    rdfs:domain :CompteBancaire ;
-    rdfs:range :Transaction ;
-    owl:inverseOf :hasSource .
 
-:hasSource a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :CompteBancaire .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasAccount
+:hasAccount rdf:type owl:ObjectProperty ;
+            rdfs:domain :Client ;
+            rdfs:range :CompteBancaire .
 
-:destinationOf a owl:ObjectProperty ;
-    rdfs:domain :CompteBancaire ;
-    rdfs:range :Transaction ;
-    owl:inverseOf :hasDestination .
 
-:hasDestination a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :CompteBancaire .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasAlertEvidence
+:hasAlertEvidence rdf:type owl:ObjectProperty ;
+                  rdfs:domain :AlerteFraude ;
+                  rdfs:range :Preuve ;
+                  rdfs:comment "Relie une alerte de fraude à une preuve. Distincte de :hasEvidence (Transaction -> Preuve)." ;
+                  rdfs:label "possède une preuve (alerte)" .
 
-:hasLocation a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :Localisation ;
-    owl:inverseOf :locationOf .
 
-:locationOf a owl:ObjectProperty ;
-    rdfs:domain :Localisation ;
-    rdfs:range :Transaction .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasCard
+:hasCard rdf:type owl:ObjectProperty ;
+         owl:inverseOf :linkedTo ;
+         rdfs:domain :CompteBancaire ;
+         rdfs:range :CarteBancaire .
 
-:hasUsualLocation a owl:ObjectProperty ;
-    rdfs:domain :Client ;
-    rdfs:range :Localisation ;
-    owl:inverseOf :isUsualLocationOf .
 
-:isUsualLocationOf a owl:ObjectProperty ;
-    rdfs:domain :Localisation ;
-    rdfs:range :Client .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasCurrentLocation
+:hasCurrentLocation rdf:type owl:ObjectProperty ;
+                    owl:inverseOf :isCurrentLocationOf ;
+                    rdfs:domain :Client ;
+                    rdfs:range :Localisation .
 
-:hasCurrentLocation a owl:ObjectProperty ;
-    rdfs:domain :Client ;
-    rdfs:range :Localisation ;
-    owl:inverseOf :isCurrentLocationOf .
 
-:isCurrentLocationOf a owl:ObjectProperty ;
-    rdfs:domain :Localisation ;
-    rdfs:range :Client .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasDestination
+:hasDestination rdf:type owl:ObjectProperty ;
+                rdfs:domain :Transaction ;
+                rdfs:range :CompteBancaire .
 
-:usesCard a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :CarteBancaire ;
-    owl:inverseOf :usedIn .
 
-:usedIn a owl:ObjectProperty ;
-    rdfs:domain :CarteBancaire ;
-    rdfs:range :Transaction .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasEvidence
+:hasEvidence rdf:type owl:ObjectProperty ;
+             rdfs:domain :Transaction ;
+             rdfs:range :Preuve ;
+             rdfs:comment "Relie une transaction à une preuve. Propriété séparée de :hasAlertEvidence (correction OWL 2 DL)." ;
+             rdfs:label "possède une preuve (transaction)" .
 
-:generatesAlert a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :AlerteFraude ;
-    owl:inverseOf :triggeredBy .
 
-:triggeredBy a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Transaction .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasLocation
+:hasLocation rdf:type owl:ObjectProperty ;
+             owl:inverseOf :locationOf ;
+             rdfs:domain :Transaction ;
+             rdfs:range :Localisation .
 
-:involvesTransactions a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Transaction .
 
-:concernsClient a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Client .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasSource
+:hasSource rdf:type owl:ObjectProperty ;
+           owl:inverseOf :sourceOf ;
+           rdfs:domain :Transaction ;
+           rdfs:range :CompteBancaire .
 
-:concernsAccount a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :CompteBancaire .
 
-:concernsCard a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :CarteBancaire .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasUsualLocation
+:hasUsualLocation rdf:type owl:ObjectProperty ;
+                  owl:inverseOf :isUsualLocationOf ;
+                  rdfs:domain :Client ;
+                  rdfs:range :Localisation .
 
-:concernsLocation a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Localisation .
 
-:triggersRule a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Regle ;
-    owl:inverseOf :appliedTo .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#hasViolatedRule
+:hasViolatedRule rdf:type owl:ObjectProperty ;
+                 rdfs:domain :Preuve ;
+                 rdfs:range :Regle .
 
-:appliedTo a owl:ObjectProperty ;
-    rdfs:domain :Regle ;
-    rdfs:range :AlerteFraude .
 
-# CORRECTION : :hasEvidence est désormais réservée à Transaction -> Preuve.
-# Elle n'est plus redéclarée avec un second rdfs:domain, ce qui évite
-# l'intersection de domaine (:AlerteFraude ⊓ :Transaction) détectée dans l'analyse.
-:hasEvidence a owl:ObjectProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :Preuve ;
-    rdfs:label "possède une preuve (transaction)" ;
-    rdfs:comment "Relie une transaction à une preuve. Propriété séparée de :hasAlertEvidence (correction OWL 2 DL)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#involvesTransactions
+:involvesTransactions rdf:type owl:ObjectProperty ;
+                      rdfs:domain :AlerteFraude ;
+                      rdfs:range :Transaction .
 
-# CORRECTION : nouvelle propriété dédiée pour le lien AlerteFraude -> Preuve,
-# remplaçant l'ancienne redéclaration conflictuelle de :hasEvidence.
-:hasAlertEvidence a owl:ObjectProperty ;
-    rdfs:domain :AlerteFraude ;
-    rdfs:range :Preuve ;
-    rdfs:label "possède une preuve (alerte)" ;
-    rdfs:comment "Relie une alerte de fraude à une preuve. Distincte de :hasEvidence (Transaction -> Preuve)." .
 
-:hasViolatedRule a owl:ObjectProperty ;
-    rdfs:domain :Preuve ;
-    rdfs:range :Regle .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#isCurrentLocationOf
+:isCurrentLocationOf rdf:type owl:ObjectProperty ;
+                     rdfs:domain :Localisation ;
+                     rdfs:range :Client .
 
-# CORRECTION : :concernsTransaction reste l'inverse de :hasEvidence
-# (désormais cohérent puisque :hasEvidence a un domaine unique : Transaction).
-:concernsTransaction a owl:ObjectProperty ;
-    rdfs:domain :Preuve ;
-    rdfs:range :Transaction ;
-    owl:inverseOf :hasEvidence .
 
-:relatedTransaction a owl:ObjectProperty , owl:SymmetricProperty ;
-    rdfs:domain :Transaction ;
-    rdfs:range :Transaction .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#isUsualLocationOf
+:isUsualLocationOf rdf:type owl:ObjectProperty ;
+                   rdfs:domain :Localisation ;
+                   rdfs:range :Client .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#linkedTo
+:linkedTo rdf:type owl:ObjectProperty ;
+          rdfs:domain :CarteBancaire ;
+          rdfs:range :CompteBancaire .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationOf
+:locationOf rdf:type owl:ObjectProperty ;
+            rdfs:domain :Localisation ;
+            rdfs:range :Transaction .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#relatedTransaction
+:relatedTransaction rdf:type owl:ObjectProperty ,
+                             owl:SymmetricProperty ;
+                    rdfs:domain :Transaction ;
+                    rdfs:range :Transaction .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#sourceOf
+:sourceOf rdf:type owl:ObjectProperty ;
+          rdfs:domain :CompteBancaire ;
+          rdfs:range :Transaction .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#triggeredBy
+:triggeredBy rdf:type owl:ObjectProperty ;
+             rdfs:domain :AlerteFraude ;
+             rdfs:range :Transaction .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#triggersRule
+:triggersRule rdf:type owl:ObjectProperty ;
+              rdfs:domain :AlerteFraude ;
+              rdfs:range :Regle .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#usedIn
+:usedIn rdf:type owl:ObjectProperty ;
+        owl:inverseOf :usesCard ;
+        rdfs:domain :CarteBancaire ;
+        rdfs:range :Transaction .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#usesCard
+:usesCard rdf:type owl:ObjectProperty ;
+          rdfs:domain :Transaction ;
+          rdfs:range :CarteBancaire .
+
 
 #################################################################
-#    PROPRIÉTÉS DE DONNÉES
+#    Data properties
 #################################################################
 
-:clientName a owl:DatatypeProperty ;
-    rdfs:domain :Client ; rdfs:range xsd:string .
-
-:clientEmail a owl:DatatypeProperty ;
-    rdfs:domain :Client ; rdfs:range xsd:string .
-
-:clientPhone a owl:DatatypeProperty ;
-    rdfs:domain :Client ; rdfs:range xsd:string .
-
-:clientAddress a owl:DatatypeProperty ;
-    rdfs:domain :Client ; rdfs:range xsd:string .
-
-:clientRiskScore a owl:DatatypeProperty ;
-    rdfs:domain :Client ; rdfs:range xsd:float .
-
-:accountNumber a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
-
-:accountIBAN a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
-
-:accountBalance a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:decimal .
-
-:accountType a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
-
-:accountStatus a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:string .
-
-:accountOpeningDate a owl:DatatypeProperty ;
-    rdfs:domain :CompteBancaire ; rdfs:range xsd:dateTime .
-
-:cardNumberMasked a owl:DatatypeProperty ;
-    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
-
-:cardType a owl:DatatypeProperty ;
-    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
-
-:cardLimit a owl:DatatypeProperty ;
-    rdfs:domain :CarteBancaire ; rdfs:range xsd:decimal .
-
-:cardExpiryDate a owl:DatatypeProperty ;
-    rdfs:domain :CarteBancaire ; rdfs:range xsd:dateTimeStamp .
-
-:cardStatus a owl:DatatypeProperty ;
-    rdfs:domain :CarteBancaire ; rdfs:range xsd:string .
-
-:transactionID a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:string .
-
-:transactionAmount a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:decimal .
-
-:transactionCurrency a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:string .
-
-:transactionTimestamp a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:dateTime .
-
-:transactionType a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:string .
-
-:transactionMerchant a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:string .
-
-:transactionStatus a owl:DatatypeProperty ;
-    rdfs:domain :Transaction ; rdfs:range xsd:string .
-
-:locationCity a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:string .
-
-:locationCountry a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:string .
-
-:locationIP a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:string .
-
-:locationDevice a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:string .
-
-:locationLatitude a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:float .
-
-:locationLongitude a owl:DatatypeProperty ;
-    rdfs:domain :Localisation ; rdfs:range xsd:float .
-
-:ruleID a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:string .
-
-:ruleName a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:string .
-
-:ruleDescription a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:string .
-
-:ruleThreshold a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:float .
-
-:ruleStatus a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:string .
-
-:alertID a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
-
-:alertType a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
-
-:alertSeverity a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
-
-:alertStatus a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
-
-:alertScore a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:float .
-
-:alertDescription a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:string .
-
-:alertTimestamp a owl:DatatypeProperty ;
-    rdfs:domain :AlerteFraude ; rdfs:range xsd:dateTime .
-
-:evidenceValue a owl:DatatypeProperty ;
-    rdfs:domain :Preuve ; rdfs:range xsd:decimal .
-
-:evidenceThreshold a owl:DatatypeProperty ;
-    rdfs:domain :Preuve ; rdfs:range xsd:decimal .
-
-:evidenceDescription a owl:DatatypeProperty ;
-    rdfs:domain :Preuve ; rdfs:range xsd:string .
-
-:evidenceTimestamp a owl:DatatypeProperty ;
-    rdfs:domain :Preuve ; rdfs:range xsd:dateTime .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountBalance
+:accountBalance rdf:type owl:DatatypeProperty ;
+                rdfs:domain :CompteBancaire ;
+                rdfs:range xsd:decimal .
 
 
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountIBAN
+:accountIBAN rdf:type owl:DatatypeProperty ;
+             rdfs:domain :CompteBancaire ;
+             rdfs:range xsd:string .
 
-:ruleThreshold a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:float ;
-    rdfs:label "seuil principal" ;
-    rdfs:comment "Valeur numérique principale lue par le moteur SPARQL." .
 
-:ruleThresholdMin a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:float ;
-    rdfs:label "borne inférieure" ;
-    rdfs:comment "Borne inférieure d'une plage (ex. heure de début)." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountNumber
+:accountNumber rdf:type owl:DatatypeProperty ;
+               rdfs:domain :CompteBancaire ;
+               rdfs:range xsd:string .
 
-:ruleThresholdMax a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:float ;
-    rdfs:label "borne supérieure" ;
-    rdfs:comment "Borne supérieure d'une plage (ex. heure de fin)." .
 
-:ruleWindowMinutes a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:integer ;
-    rdfs:label "fenêtre temporelle (minutes)" ;
-    rdfs:comment "Fenêtre glissante sur laquelle la règle s'applique." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountOpeningDate
+:accountOpeningDate rdf:type owl:DatatypeProperty ;
+                    rdfs:domain :CompteBancaire ;
+                    rdfs:range xsd:dateTime .
 
-:ruleMultiplier a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:float ;
-    rdfs:label "multiplicateur" ;
-    rdfs:comment "Facteur multiplicatif (ex. 3x la moyenne)." .
 
-:ruleMinSampleSize a owl:DatatypeProperty ;
-    rdfs:domain :Regle ; rdfs:range xsd:integer ;
-    rdfs:label "taille minimale d'échantillon" ;
-    rdfs:comment "Nombre minimum d'observations pour appliquer la règle." .
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountStatus
+:accountStatus rdf:type owl:DatatypeProperty ;
+               rdfs:domain :CompteBancaire ;
+               rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#accountType
+:accountType rdf:type owl:DatatypeProperty ;
+             rdfs:domain :CompteBancaire ;
+             rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertDescription
+:alertDescription rdf:type owl:DatatypeProperty ;
+                  rdfs:domain :AlerteFraude ;
+                  rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertID
+:alertID rdf:type owl:DatatypeProperty ;
+         rdfs:domain :AlerteFraude ;
+         rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertScore
+:alertScore rdf:type owl:DatatypeProperty ;
+            rdfs:domain :AlerteFraude ;
+            rdfs:range xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertSeverity
+:alertSeverity rdf:type owl:DatatypeProperty ;
+               rdfs:domain :AlerteFraude ;
+               rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertStatus
+:alertStatus rdf:type owl:DatatypeProperty ;
+             rdfs:domain :AlerteFraude ;
+             rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertTimestamp
+:alertTimestamp rdf:type owl:DatatypeProperty ;
+                rdfs:domain :AlerteFraude ;
+                rdfs:range xsd:dateTime .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alertType
+:alertType rdf:type owl:DatatypeProperty ;
+           rdfs:domain :AlerteFraude ;
+           rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#cardExpiryDate
+:cardExpiryDate rdf:type owl:DatatypeProperty ;
+                rdfs:domain :CarteBancaire ;
+                rdfs:range xsd:dateTimeStamp .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#cardLimit
+:cardLimit rdf:type owl:DatatypeProperty ;
+           rdfs:domain :CarteBancaire ;
+           rdfs:range xsd:decimal .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#cardNumberMasked
+:cardNumberMasked rdf:type owl:DatatypeProperty ;
+                  rdfs:domain :CarteBancaire ;
+                  rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#cardStatus
+:cardStatus rdf:type owl:DatatypeProperty ;
+            rdfs:domain :CarteBancaire ;
+            rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#cardType
+:cardType rdf:type owl:DatatypeProperty ;
+          rdfs:domain :CarteBancaire ;
+          rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#clientAddress
+:clientAddress rdf:type owl:DatatypeProperty ;
+               rdfs:domain :Client ;
+               rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#clientEmail
+:clientEmail rdf:type owl:DatatypeProperty ;
+             rdfs:domain :Client ;
+             rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#clientName
+:clientName rdf:type owl:DatatypeProperty ;
+            rdfs:domain :Client ;
+            rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#clientPhone
+:clientPhone rdf:type owl:DatatypeProperty ;
+             rdfs:domain :Client ;
+             rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#clientRiskScore
+:clientRiskScore rdf:type owl:DatatypeProperty ;
+                 rdfs:domain :Client ;
+                 rdfs:range xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#evidenceDescription
+:evidenceDescription rdf:type owl:DatatypeProperty ;
+                     rdfs:domain :Preuve ;
+                     rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#evidenceThreshold
+:evidenceThreshold rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Preuve ;
+                   rdfs:range xsd:decimal .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#evidenceTimestamp
+:evidenceTimestamp rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Preuve ;
+                   rdfs:range xsd:dateTime .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#evidenceValue
+:evidenceValue rdf:type owl:DatatypeProperty ;
+               rdfs:domain :Preuve ;
+               rdfs:range xsd:decimal .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationCity
+:locationCity rdf:type owl:DatatypeProperty ;
+              rdfs:domain :Localisation ;
+              rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationCountry
+:locationCountry rdf:type owl:DatatypeProperty ;
+                 rdfs:domain :Localisation ;
+                 rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationDevice
+:locationDevice rdf:type owl:DatatypeProperty ;
+                rdfs:domain :Localisation ;
+                rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationIP
+:locationIP rdf:type owl:DatatypeProperty ;
+            rdfs:domain :Localisation ;
+            rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationLatitude
+:locationLatitude rdf:type owl:DatatypeProperty ;
+                  rdfs:domain :Localisation ;
+                  rdfs:range xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#locationLongitude
+:locationLongitude rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Localisation ;
+                   rdfs:range xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleDescription
+:ruleDescription rdf:type owl:DatatypeProperty ;
+                 rdfs:domain :Regle ;
+                 rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleID
+:ruleID rdf:type owl:DatatypeProperty ;
+        rdfs:domain :Regle ;
+        rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleMinSampleSize
+:ruleMinSampleSize rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Regle ;
+                   rdfs:range xsd:integer ;
+                   rdfs:comment "Nombre minimum d'observations pour appliquer la règle." ;
+                   rdfs:label "taille minimale d'échantillon" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleMultiplier
+:ruleMultiplier rdf:type owl:DatatypeProperty ;
+                rdfs:domain :Regle ;
+                rdfs:range xsd:float ;
+                rdfs:comment "Facteur multiplicatif (ex. 3x la moyenne)." ;
+                rdfs:label "multiplicateur" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleName
+:ruleName rdf:type owl:DatatypeProperty ;
+          rdfs:domain :Regle ;
+          rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleStatus
+:ruleStatus rdf:type owl:DatatypeProperty ;
+            rdfs:domain :Regle ;
+            rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleThreshold
+:ruleThreshold rdf:type owl:DatatypeProperty ;
+               rdfs:domain :Regle ;
+               rdfs:range xsd:float ;
+               rdfs:comment "Valeur numérique principale lue par le moteur SPARQL." ;
+               rdfs:label "seuil principal" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleThresholdMax
+:ruleThresholdMax rdf:type owl:DatatypeProperty ;
+                  rdfs:domain :Regle ;
+                  rdfs:range xsd:float ;
+                  rdfs:comment "Borne supérieure d'une plage (ex. heure de fin)." ;
+                  rdfs:label "borne supérieure" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleThresholdMin
+:ruleThresholdMin rdf:type owl:DatatypeProperty ;
+                  rdfs:domain :Regle ;
+                  rdfs:range xsd:float ;
+                  rdfs:comment "Borne inférieure d'une plage (ex. heure de début)." ;
+                  rdfs:label "borne inférieure" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#ruleWindowMinutes
+:ruleWindowMinutes rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Regle ;
+                   rdfs:range xsd:integer ;
+                   rdfs:comment "Fenêtre glissante sur laquelle la règle s'applique." ;
+                   rdfs:label "fenêtre temporelle (minutes)" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionAmount
+:transactionAmount rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Transaction ;
+                   rdfs:range xsd:decimal .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionCurrency
+:transactionCurrency rdf:type owl:DatatypeProperty ;
+                     rdfs:domain :Transaction ;
+                     rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionID
+:transactionID rdf:type owl:DatatypeProperty ;
+               rdfs:domain :Transaction ;
+               rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionMerchant
+:transactionMerchant rdf:type owl:DatatypeProperty ;
+                     rdfs:domain :Transaction ;
+                     rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionStatus
+:transactionStatus rdf:type owl:DatatypeProperty ;
+                   rdfs:domain :Transaction ;
+                   rdfs:range xsd:string .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionTimestamp
+:transactionTimestamp rdf:type owl:DatatypeProperty ;
+                      rdfs:domain :Transaction ;
+                      rdfs:range xsd:dateTime .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#transactionType
+:transactionType rdf:type owl:DatatypeProperty ;
+                 rdfs:domain :Transaction ;
+                 rdfs:range xsd:string .
+
 
 #################################################################
-#    RESTRICTIONS OWL
+#    Classes
 #################################################################
 
-:Client rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :clientName ;
-    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
-    owl:onDataRange xsd:string
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraude
+:AlerteFraude rdf:type owl:Class ;
+              rdfs:subClassOf [ rdf:type owl:Restriction ;
+                                owl:onProperty :triggersRule ;
+                                owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+                                owl:onClass :Regle
+                              ] ;
+              rdfs:comment "Alerte générée lors de la détection d'une fraude." ;
+              rdfs:label "Alerte de Fraude" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeCumul
+:AlerteFraudeCumul rdf:type owl:Class ;
+                   rdfs:subClassOf :AlerteFraude ;
+                   rdfs:comment "Cumul journalier dépassé, >10000 MAD/jour (R005)." ;
+                   rdfs:label "Alerte Fraude Cumul" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeFrequence
+:AlerteFraudeFrequence rdf:type owl:Class ;
+                       rdfs:subClassOf :AlerteFraude ;
+                       rdfs:comment "Fréquence anormale de transactions, >10 en 5 min (R004)." ;
+                       rdfs:label "Alerte Fraude Fréquence" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeHeure
+:AlerteFraudeHeure rdf:type owl:Class ;
+                   rdfs:subClassOf :AlerteFraude ;
+                   rdfs:comment "Transaction hors heures habituelles, 23h-6h (R003)." ;
+                   rdfs:label "Alerte Fraude Heure" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeHistorique
+:AlerteFraudeHistorique rdf:type owl:Class ;
+                        rdfs:subClassOf :AlerteFraude ;
+                        rdfs:comment "Montant supérieur à 3x la moyenne historique du client (R007)." ;
+                        rdfs:label "Alerte Fraude Historique" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeLocalisation
+:AlerteFraudeLocalisation rdf:type owl:Class ;
+                          rdfs:subClassOf :AlerteFraude ;
+                          rdfs:comment "Transaction incohérente avec la localisation actuelle du client (R010)." ;
+                          rdfs:label "Alerte Fraude Localisation" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeMontant
+:AlerteFraudeMontant rdf:type owl:Class ;
+                     rdfs:subClassOf :AlerteFraude ;
+                     rdfs:comment "Montant anormal dépassant le seuil critique (R001)." ;
+                     rdfs:label "Alerte Fraude Montant" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeMultiPays
+:AlerteFraudeMultiPays rdf:type owl:Class ;
+                       rdfs:subClassOf :AlerteFraude ;
+                       rdfs:comment "Carte utilisée dans plusieurs pays, >2 pays en 1h (R006)." ;
+                       rdfs:label "Alerte Fraude Multi-Pays" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudePays
+:AlerteFraudePays rdf:type owl:Class ;
+                  rdfs:subClassOf :AlerteFraude ;
+                  rdfs:comment "Transaction hors pays habituel (R002)." ;
+                  rdfs:label "Alerte Fraude Pays" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudePlafond
+:AlerteFraudePlafond rdf:type owl:Class ;
+                     rdfs:subClassOf :AlerteFraude ;
+                     rdfs:comment "Transaction supérieure au plafond de la carte (R009)." ;
+                     rdfs:label "Alerte Fraude Plafond" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeSolde
+:AlerteFraudeSolde rdf:type owl:Class ;
+                   rdfs:subClassOf :AlerteFraude ;
+                   rdfs:comment "Tentative de retrait supérieure au solde disponible (R008)." ;
+                   rdfs:label "Alerte Fraude Solde" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#AlerteFraudeVoyageImpossible
+:AlerteFraudeVoyageImpossible rdf:type owl:Class ;
+                              rdfs:subClassOf :AlerteFraude ;
+                              rdfs:comment "Transaction avec une vitesse de déplacement physiquement impossible (R011)." ;
+                              rdfs:label "Alerte Fraude Voyage Impossible" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#CarteBancaire
+:CarteBancaire rdf:type owl:Class ;
+               rdfs:comment "Carte bancaire liée à un compte." ;
+               rdfs:label "Carte Bancaire" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#Client
+:Client rdf:type owl:Class ;
+        rdfs:subClassOf [ rdf:type owl:Restriction ;
+                          owl:onProperty :clientName ;
+                          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+                          owl:onDataRange xsd:string
+                        ] ;
+        rdfs:comment "Personne physique ou morale détenant des comptes bancaires." ;
+        rdfs:label "Client" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#CompteBancaire
+:CompteBancaire rdf:type owl:Class ;
+                rdfs:subClassOf [ rdf:type owl:Restriction ;
+                                  owl:onProperty :belongsTo ;
+                                  owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+                                  owl:onClass :Client
+                                ] ;
+                rdfs:comment "Compte bancaire d'un client." ;
+                rdfs:label "Compte Bancaire" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#Localisation
+:Localisation rdf:type owl:Class ;
+              rdfs:comment "Lieu géographique." ;
+              rdfs:label "Localisation" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#Preuve
+:Preuve rdf:type owl:Class ;
+        rdfs:subClassOf [ rdf:type owl:Restriction ;
+                          owl:onProperty :hasViolatedRule ;
+                          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+                          owl:onClass :Regle
+                        ] ;
+        rdfs:comment "Élément de preuve justifiant une alerte de fraude (déclaration explicite - correction OWL 2 DL)." ;
+        rdfs:label "Preuve" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#Regle
+:Regle rdf:type owl:Class ;
+       rdfs:comment "Règle de détection de fraude." ;
+       rdfs:label "Règle" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#Transaction
+:Transaction rdf:type owl:Class ;
+             rdfs:subClassOf [ rdf:type owl:Restriction ;
+                               owl:onProperty :hasSource ;
+                               owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+                               owl:onClass :CompteBancaire
+                             ] ;
+             rdfs:comment "Opération bancaire." ;
+             rdfs:label "Transaction" .
+
+
+#################################################################
+#    Individuals
+#################################################################
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#alerte_0197005c
+:alerte_0197005c rdf:type owl:NamedIndividual ,
+                          :AlerteFraudeMontant ;
+                 :concernsAccount :compte_809888dd ;
+                 :concernsClient :client_9fc94caa ;
+                 :hasAlertEvidence :preuve_001 ;
+                 :triggeredBy :txn_98e8caca ;
+                 :triggersRule :regle_R001 ;
+                 :alertID "c7a64f89-6570-42f2-9ae6-9df3cdc7c087" ;
+                 :alertScore "0.83"^^xsd:float ;
+                 :alertSeverity "Elevee" ;
+                 :alertStatus "Ouverte" ;
+                 :alertTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#carte_f6ec76c8
+:carte_f6ec76c8 rdf:type owl:NamedIndividual ,
+                         :CarteBancaire ;
+                :linkedTo :compte_a06cdbdd ;
+                :cardLimit 10000.0 ;
+                :cardNumberMasked "****-****-****-6c8" ;
+                :cardStatus "Active" ;
+                :cardType "Visa" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#client_14c38e0e
+:client_14c38e0e rdf:type owl:NamedIndividual ,
+                          :Client ;
+                 :hasAccount :compte_a06cdbdd ;
+                 :hasUsualLocation :loc_254ab0a8 ;
+                 :clientAddress "590, rue de Nicolas 06957 MaryBourg" ;
+                 :clientEmail "denislefevre@example.com" ;
+                 :clientName "Luce Letellier-Poirier" ;
+                 :clientPhone "+33 2 56 12 97 18" ;
+                 :clientRiskScore "1.0"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#client_9fc94caa
+:client_9fc94caa rdf:type owl:NamedIndividual ,
+                          :Client ;
+                 :hasAccount :compte_809888dd ;
+                 :clientName "Client Exemple" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#compte_809888dd
+:compte_809888dd rdf:type owl:NamedIndividual ,
+                          :CompteBancaire ;
+                 :belongsTo :client_9fc94caa ;
+                 :accountBalance 3200.00 ;
+                 :accountIBAN "MA0011000000123456789012" ;
+                 :accountNumber "70012345678901234567890" ;
+                 :accountStatus "Actif" ;
+                 :accountType "Courant" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#compte_a06cdbdd
+:compte_a06cdbdd rdf:type owl:NamedIndividual ,
+                          :CompteBancaire ;
+                 :belongsTo :client_14c38e0e ;
+                 :hasCard :carte_f6ec76c8 ;
+                 :accountBalance 6709.58 ;
+                 :accountIBAN "FR8503039124427487889550202" ;
+                 :accountNumber "45182784544715618350205" ;
+                 :accountStatus "Actif" ;
+                 :accountType "Epargne" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#loc_254ab0a8
+:loc_254ab0a8 rdf:type owl:NamedIndividual ,
+                       :Localisation ;
+              :locationCity "MaryBourg" ;
+              :locationCountry "France" ;
+              :locationLatitude "48.8566"^^xsd:float ;
+              :locationLongitude "2.3522"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#loc_e935e2ca
+:loc_e935e2ca rdf:type owl:NamedIndividual ,
+                       :Localisation ;
+              :locationCity "Casablanca" ;
+              :locationCountry "Maroc" ;
+              :locationLatitude "33.5731"^^xsd:float ;
+              :locationLongitude "-7.5898"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#preuve_001
+:preuve_001 rdf:type owl:NamedIndividual ,
+                     :Preuve ;
+            :concernsTransaction :txn_98e8caca ;
+            :hasViolatedRule :regle_R001 ;
+            :evidenceDescription "Montant dépasse le seuil critique" ;
+            :evidenceThreshold 5000.0 ;
+            :evidenceTimestamp "2026-08-31T14:05:06"^^xsd:dateTime ;
+            :evidenceValue 16411.18 .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R001
+:regle_R001 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Transaction dépassant le seuil critique" ;
+            :ruleID "R001" ;
+            :ruleName "Montant anormal" ;
+            :ruleStatus "Actif" ;
+            :ruleThreshold "5000.0"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R002
+:regle_R002 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Transaction hors pays habituel" ;
+            :ruleID "R002" ;
+            :ruleName "Changement de pays" ;
+            :ruleStatus "Actif" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R003
+:regle_R003 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Transaction en dehors des heures normales" ;
+            :ruleID "R003" ;
+            :ruleName "Heure inhabituelle" ;
+            :ruleStatus "Actif" ;
+            :ruleThresholdMax "6.0"^^xsd:float ;
+            :ruleThresholdMin "23.0"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R004
+:regle_R004 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Trop de transactions sur courte période" ;
+            :ruleID "R004" ;
+            :ruleName "Fréquence anormale" ;
+            :ruleStatus "Actif" ;
+            :ruleThreshold "10.0"^^xsd:float ;
+            :ruleWindowMinutes 5 .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R005
+:regle_R005 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Cumul journalier dépassé" ;
+            :ruleID "R005" ;
+            :ruleName "Cumul journalier" ;
+            :ruleStatus "Actif" ;
+            :ruleThreshold "10000.0"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R006
+:regle_R006 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Carte utilisée dans plusieurs pays" ;
+            :ruleID "R006" ;
+            :ruleName "Carte multi-pays" ;
+            :ruleStatus "Actif" ;
+            :ruleThreshold "2.0"^^xsd:float ;
+            :ruleWindowMinutes 60 .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R007
+:regle_R007 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Montant anormal par rapport à l'historique" ;
+            :ruleID "R007" ;
+            :ruleMinSampleSize 3 ;
+            :ruleMultiplier "3.0"^^xsd:float ;
+            :ruleName "Historique incohérent" ;
+            :ruleStatus "Actif" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R008
+:regle_R008 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Tentative de retrait > solde disponible" ;
+            :ruleID "R008" ;
+            :ruleName "Solde insuffisant" ;
+            :ruleStatus "Actif" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R009
+:regle_R009 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Transaction > plafond de la carte" ;
+            :ruleID "R009" ;
+            :ruleName "Plafond dépassé" ;
+            :ruleStatus "Actif" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R010
+:regle_R010 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Transaction ≠ localisation actuelle du client" ;
+            :ruleID "R010" ;
+            :ruleName "Localisation incohérente" ;
+            :ruleStatus "Actif" .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#regle_R011
+:regle_R011 rdf:type owl:NamedIndividual ,
+                     :Regle ;
+            :ruleDescription "Vitesse de déplacement > 900 km/h entre deux transactions" ;
+            :ruleID "R011" ;
+            :ruleName "Voyage impossible" ;
+            :ruleStatus "Actif" ;
+            :ruleThreshold "900.0"^^xsd:float .
+
+
+###  http://www.semanticweb.org/dell/ontologies/2026/7/Fraude-bancaires-corrigee#txn_98e8caca
+:txn_98e8caca rdf:type owl:NamedIndividual ,
+                       :Transaction ;
+              :generatesAlert :alerte_0197005c ;
+              :hasEvidence :preuve_001 ;
+              :hasLocation :loc_e935e2ca ;
+              :hasSource :compte_809888dd ;
+              :transactionAmount 16411.18 ;
+              :transactionCurrency "MAD" ;
+              :transactionID "txn-98e8caca" ;
+              :transactionStatus "Suspecte" ;
+              :transactionTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime .
+
+
+#################################################################
+#    General axioms
+#################################################################
+
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :AlerteFraudeCumul
+                :AlerteFraudeFrequence
+                :AlerteFraudeHeure
+                :AlerteFraudeHistorique
+                :AlerteFraudeLocalisation
+                :AlerteFraudeMontant
+                :AlerteFraudeMultiPays
+                :AlerteFraudePays
+                :AlerteFraudePlafond
+                :AlerteFraudeSolde
+                :AlerteFraudeVoyageImpossible
+              )
 ] .
 
-:CompteBancaire rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :belongsTo ;
-    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
-    owl:onClass :Client
-] .
 
-:Transaction rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :hasSource ;
-    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
-    owl:onClass :CompteBancaire
-] .
-
-:AlerteFraude rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :triggersRule ;
-    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
-    owl:onClass :Regle
-] .
-
-:Preuve rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty :hasViolatedRule ;
-    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
-    owl:onClass :Regle
-] .
-
-#################################################################
-#    RÈGLES MÉTIER (avec lien direct vers la sous-classe cible)
-#################################################################
-
-:regle_R001 a :Regle ;
-    :ruleID "R001" ;
-    :ruleName "Montant anormal" ;
-    :ruleDescription "Transaction dépassant le seuil critique" ;
-    :ruleThreshold "5000.0"^^xsd:float ;
-    :ruleStatus "Actif" .
-
-:regle_R002 a :Regle ;
-    :ruleID "R002" ;
-    :ruleName "Changement de pays" ;
-    :ruleDescription "Transaction hors pays habituel" ;
-    :ruleStatus "Actif" .
-
-
-:regle_R003 a :Regle ;
-    :ruleID "R003" ;
-    :ruleName "Heure inhabituelle" ;
-    :ruleDescription "Transaction en dehors des heures normales" ;
-    :ruleThresholdMin "23"^^xsd:float ;
-    :ruleThresholdMax "6"^^xsd:float ;
-    :ruleStatus "Actif" .
-
-:regle_R004 a :Regle ;
-    :ruleID "R004" ;
-    :ruleName "Fréquence anormale" ;
-    :ruleDescription "Trop de transactions sur courte période" ;
-    :ruleThreshold "10"^^xsd:float ;
-    :ruleWindowMinutes "5"^^xsd:integer ;
-    :ruleStatus "Actif" .
-
-:regle_R005 a :Regle ;
-    :ruleID "R005" ;
-    :ruleName "Cumul journalier" ;
-    :ruleDescription "Cumul journalier dépassé" ;
-    :ruleThreshold "10000.0"^^xsd:float ;
-    :ruleStatus "Actif" .
-
-:regle_R006 a :Regle ;
-    :ruleID "R006" ;
-    :ruleName "Carte multi-pays" ;
-    :ruleDescription "Carte utilisée dans plusieurs pays" ;
-    :ruleThreshold "2"^^xsd:float ;
-    :ruleWindowMinutes "60"^^xsd:integer ;
-    :ruleStatus "Actif" .
-
-:regle_R007 a :Regle ;
-    :ruleID "R007" ;
-    :ruleName "Historique incohérent" ;
-    :ruleDescription "Montant anormal par rapport à l'historique" ;
-    :ruleMultiplier "3"^^xsd:float ;
-    :ruleMinSampleSize "3"^^xsd:integer ;
-    :ruleStatus "Actif" .
-
-:regle_R008 a :Regle ;
-    :ruleID "R008" ;
-    :ruleName "Solde insuffisant" ;
-    :ruleDescription "Tentative de retrait > solde disponible" ;
-    :ruleStatus "Actif" .
-
-:regle_R009 a :Regle ;
-    :ruleID "R009" ;
-    :ruleName "Plafond dépassé" ;
-    :ruleDescription "Transaction > plafond de la carte" ;
-    :ruleStatus "Actif" .
-
-:regle_R010 a :Regle ;
-    :ruleID "R010" ;
-    :ruleName "Localisation incohérente" ;
-    :ruleDescription "Transaction ≠ localisation actuelle du client" ;
-    :ruleStatus "Actif" .
-:regle_R011 a :Regle ;
-    :ruleID "R011" ;
-    :ruleName "Voyage impossible" ;
-    :ruleDescription "Vitesse de déplacement > 900 km/h entre deux transactions" ;
-    :ruleThreshold "900.0"^^xsd:float ;
-    :ruleStatus "Actif" .
-
-#################################################################
-#    EXEMPLES D'INSTANCES
-#################################################################
-
-:loc_254ab0a8 a :Localisation ;
-    :locationCity "MaryBourg" ;
-    :locationCountry "France" ;
-    :locationLatitude "48.8566"^^xsd:float ;
-    :locationLongitude "2.3522"^^xsd:float .
-
-:client_14c38e0e a :Client ;
-    :clientName "Luce Letellier-Poirier" ;
-    :clientEmail "denislefevre@example.com" ;
-    :clientPhone "+33 2 56 12 97 18" ;
-    :clientAddress "590, rue de Nicolas 06957 MaryBourg" ;
-    :clientRiskScore "1.0"^^xsd:float ;
-    :hasAccount :compte_a06cdbdd ;
-    :hasUsualLocation :loc_254ab0a8 .
-
-:carte_f6ec76c8 a :CarteBancaire ;
-    :cardNumberMasked "****-****-****-6c8" ;
-    :cardType "Visa" ;
-    :cardLimit 10000.0 ;
-    :cardStatus "Active" ;
-    :linkedTo :compte_a06cdbdd .
-
-:compte_a06cdbdd a :CompteBancaire ;
-    :accountNumber "45182784544715618350205" ;
-    :accountIBAN "FR8503039124427487889550202" ;
-    :accountBalance 6709.58 ;
-    :accountType "Epargne" ;
-    :accountStatus "Actif" ;
-    :belongsTo :client_14c38e0e ;
-    :hasCard :carte_f6ec76c8 .
-
-:loc_e935e2ca a :Localisation ;
-    :locationCity "Casablanca" ;
-    :locationCountry "Maroc" ;
-    :locationLatitude "33.5731"^^xsd:float ;
-    :locationLongitude "-7.5898"^^xsd:float .
-
-:client_9fc94caa a :Client ;
-    :clientName "Client Exemple" ;
-    :hasAccount :compte_809888dd .
-
-:compte_809888dd a :CompteBancaire ;
-    :accountNumber "70012345678901234567890" ;
-    :accountIBAN "MA0011000000123456789012" ;
-    :accountBalance 3200.00 ;
-    :accountType "Courant" ;
-    :accountStatus "Actif" ;
-    :belongsTo :client_9fc94caa .
-
-:txn_98e8caca a :Transaction ;
-    :transactionID "txn-98e8caca" ;
-    :transactionAmount 16411.18 ;
-    :transactionCurrency "MAD" ;
-    :transactionTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime ;
-    :transactionStatus "Suspecte" ;
-    :hasSource :compte_809888dd ;
-    :hasLocation :loc_e935e2ca ;
-    :generatesAlert :alerte_0197005c ;
-    :hasEvidence :preuve_001 .
-
-#################################################################
-#    EXEMPLE D'INSTANCE MISE À JOUR
-#    (l'alerte utilise la sous-classe spécifique + :hasAlertEvidence)
-#################################################################
-
-:alerte_0197005c a :AlerteFraudeMontant ;
-    :alertID "c7a64f89-6570-42f2-9ae6-9df3cdc7c087" ;
-    :alertScore "0.83"^^xsd:float ;
-    :alertSeverity "Elevee" ;
-    :alertStatus "Ouverte" ;
-    :alertTimestamp "2026-08-31T14:05:06.011467"^^xsd:dateTime ;
-    :triggeredBy :txn_98e8caca ;
-    :concernsClient :client_9fc94caa ;
-    :concernsAccount :compte_809888dd ;
-    :triggersRule :regle_R001 ;
-    :hasAlertEvidence :preuve_001 .
-
-:preuve_001 a :Preuve ;
-    :evidenceValue 16411.18 ;
-    :evidenceThreshold 5000.0 ;
-    :evidenceDescription "Montant dépasse le seuil critique" ;
-    :evidenceTimestamp "2026-08-31T14:05:06"^^xsd:dateTime ;
-    :hasViolatedRule :regle_R001 ;
-    :concernsTransaction :txn_98e8caca .
-:ruleThresholdMin  a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
-:ruleThresholdMax  a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
-:ruleWindowMinutes a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:integer .
-:ruleMultiplier    a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:float .
-:ruleMinSampleSize a owl:DatatypeProperty ; rdfs:domain :Regle ; rdfs:range xsd:integer .
+###  Generated by the OWL API (version 4.5.29.2024-05-13T12:11:03Z) https://github.com/owlcs/owlapi
